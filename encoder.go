@@ -1,69 +1,63 @@
-package gneg
+package encs
 
 import (
+	"fmt"
 	"io"
 	"reflect"
+	"unsafe"
 
-	"github.com/stewi1014/gneg/gram"
+	"github.com/stewi1014/encs/enc"
 )
 
-// NewEncoder returns a new encoder writing to w.
-// config can be nil.
-func NewEncoder(w io.Writer, config *Config) *Encoder {
-	e := &Encoder{
-		typeEncoders: make(map[reflect.Type]etype),
+func NewEncoder(w io.Writer) *Encoder {
+	return &Encoder{
+		w:        w,
+		te:       defaultTypeEncoder,
+		encoders: make(map[reflect.Type]enc.Encodable),
 	}
-
-	// Gram Writer
-	if config == nil || config.GramEncoder == nil {
-		e.gramWriter = gram.NewStreamWriter(w)
-	} else {
-		e.gramWriter = config.GramEncoder
-	}
-
-	// Type Encoder
-	if config == nil || config.TypeResolver == nil {
-		e.resolver = NewCachingResolver(defaultResolver)
-	} else {
-		e.resolver = config.TypeResolver
-	}
-
-	return e
 }
 
-// Encoder provides a method for encoding data into a stream.
 type Encoder struct {
-	gramWriter   gram.Writer
-	resolver     TypeResolver
-	typeEncoders map[reflect.Type]etype
+	w        io.Writer
+	te       enc.Type
+	encoders map[reflect.Type]enc.Encodable
 }
 
-// Encode encodes v.
 func (e *Encoder) Encode(v interface{}) error {
+	if v == nil {
+		return enc.ErrNilPointer
+	}
 	val := reflect.ValueOf(v)
-	ty := val.Type()
-	g, write := e.gramWriter.Write()
-
-	header := gram.WriteSizeHeader(g)
-	err := e.resolver.Encode(ty, g)
-	if err != nil {
-		return err
+	if val.Kind() != reflect.Ptr {
+		return fmt.Errorf("%v: values must be passed by reference", enc.ErrBadType)
 	}
-	header()
-
-	et, ok := e.typeEncoders[ty]
-	if !ok {
-		et, err = newetype(ty)
-		if err != nil {
-			return err
-		}
-		e.typeEncoders[ty] = et
+	if val.IsNil() {
+		return enc.ErrNilPointer
+	}
+	val = val.Elem()
+	if !val.CanAddr() {
+		return fmt.Errorf("%v: cannot get address of %v", enc.ErrBadType, val)
 	}
 
-	err = et.Encode(val, g)
+	err := e.te.Encode(val.Type(), e.w)
 	if err != nil {
 		return err
 	}
 
-	return write()
+	ec := e.getEncodable(val.Type())
+	return ec.Encode(unsafe.Pointer(val.UnsafeAddr()), e.w)
+}
+
+func (e *Encoder) getEncodable(t reflect.Type) enc.Encodable {
+	if ec, ok := e.encoders[t]; ok {
+		return ec
+	}
+
+	config := &enc.Config{
+		TypeEncoder: e.te,
+	}
+
+	ec := enc.NewEncodable(t, config)
+	e.encoders[t] = ec
+	return ec
 }

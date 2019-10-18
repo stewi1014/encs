@@ -1,97 +1,71 @@
-package gneg
+package encs
 
 import (
-	"context"
+	"fmt"
 	"io"
 	"reflect"
+	"unsafe"
 
-	"github.com/stewi1014/gneg/gram"
+	"github.com/stewi1014/encs/enc"
 )
 
-// NewDecoder returns a new Decoder on r.
-func NewDecoder(r io.Reader, config *Config) *Decoder {
-	d := &Decoder{
-		typeDecoders: make(map[reflect.Type]etype),
+// NewDecoder returns a new Decoder.
+func NewDecoder(r io.Reader) *Decoder {
+	return &Decoder{
+		r:        r,
+		te:       defaultTypeEncoder,
+		decoders: make(map[reflect.Type]enc.Encodable),
 	}
-
-	if config == nil || config.GramDecoder == nil {
-		d.gramReader = gram.NewStreamReader(r)
-	} else {
-		d.gramReader = config.GramDecoder
-	}
-
-	if config == nil || config.TypeResolver == nil {
-		d.resolver = NewCachingResolver(defaultResolver)
-	} else {
-		d.resolver = config.TypeResolver
-	}
-
-	return d
 }
 
-// Decoder decodes types
+// Decoder decodes data into passed values.
 type Decoder struct {
-	gramReader   gram.Reader
-	resolver     TypeResolver
-	typeDecoders map[reflect.Type]etype
+	r        io.Reader
+	te       enc.Type
+	decoders map[reflect.Type]enc.Encodable
 }
 
-// ContextDecode decodes with a context.
-func (d *Decoder) ContextDecode(ctx context.Context, v interface{}) error {
-	var derr error
-	done := make(chan struct{})
-	go func() {
-		derr = d.Decode(v)
-		close(done)
-	}()
-	select {
-	case <-done:
-		return derr
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-// Decode decodes into val
+// Decode decodes the next value from the reader.
 func (d *Decoder) Decode(v interface{}) error {
-	g, err := d.gramReader.Read()
+	if v == nil {
+		return enc.ErrNilPointer
+	}
+
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Ptr {
+		return fmt.Errorf("%v: decode must be given pointer to type", enc.ErrBadType)
+	}
+	if val.IsNil() {
+		return enc.ErrNilPointer
+	}
+	val = val.Elem()
+	if !val.CanSet() {
+		return fmt.Errorf("%v: cannot set value of %v", enc.ErrBadType, val)
+	}
+
+	ty, err := d.te.Decode(d.r)
 	if err != nil {
 		return err
 	}
 
-	l := g.ReadUint32()
-	ty, err := d.resolver.Decode(g.LimitReader(int(l)))
-	if err != nil {
-		return err
+	if ty != val.Type() {
+		return fmt.Errorf("%v: decoding into %v, but received %v", enc.ErrBadType, val.Type(), ty)
 	}
 
-	et, ok := d.typeDecoders[ty]
-	if !ok {
-		et, err = newetype(ty)
-		if err != nil {
-			return err
-		}
-		d.typeDecoders[ty] = et
-	}
-
-	val := reflect.ValueOf(v).Elem()
-	if val.Kind() == reflect.Interface {
-		return decodeIntoInterface(val, et, g)
-	}
-	return et.Decode(val, g)
+	e := d.getEncodable(ty)
+	return e.Decode(unsafe.Pointer(val.UnsafeAddr()), d.r)
 }
 
-// correctly initialise and decode into an interface.
-func decodeIntoInterface(v reflect.Value, et etype, g *gram.Gram) error {
-	if v.IsNil() || et.EncType() != v.Elem().Type() {
-		n := reflect.New(et.EncType()).Elem()
-		err := et.Decode(n, g)
-		if err != nil {
-			return err
-		}
-
-		v.Set(n)
-		return nil
+func (d *Decoder) getEncodable(t reflect.Type) enc.Encodable {
+	if e, ok := d.decoders[t]; ok {
+		return e
 	}
-	return et.Decode(v.Elem(), g)
+
+	config := &enc.Config{
+		TypeEncoder: d.te,
+	}
+
+	e := enc.NewEncodable(t, config)
+	d.decoders[t] = e
+	return e
 }

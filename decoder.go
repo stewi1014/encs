@@ -25,7 +25,8 @@ type Decoder struct {
 	decoders map[reflect.Type]enc.Encodable
 }
 
-// Decode decodes the next value from the reader.
+// Decode decodes the next value from the reader into the type referenced by v.
+// v must be a pointer to the type passed to Encode.
 func (d *Decoder) Decode(v interface{}) error {
 	if v == nil {
 		return enc.ErrNilPointer
@@ -54,6 +55,26 @@ func (d *Decoder) Decode(v interface{}) error {
 
 	e := d.getEncodable(ty)
 	return e.Decode(unsafe.Pointer(val.UnsafeAddr()), d.r)
+}
+
+// DecodeInterface sets v to the decoded value.
+func (d *Decoder) DecodeInterface(i *interface{}) error {
+	if i == nil {
+		return enc.ErrNilPointer
+	}
+
+	ival := reflect.ValueOf(i).Elem()
+	if !ival.CanSet() {
+		return fmt.Errorf("%v: cannot set value of %v", enc.ErrBadType, ival)
+	}
+
+	ty, err := d.te.Decode(d.r)
+	if err != nil {
+		return err
+	}
+
+	ec := d.getEncodable(ty)
+	return enc.DecodeInterface(i, ec, d.r)
 }
 
 func (d *Decoder) getEncodable(t reflect.Type) enc.Encodable {

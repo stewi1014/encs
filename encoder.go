@@ -1,10 +1,8 @@
 package encs
 
 import (
-	"fmt"
 	"io"
 	"reflect"
-	"unsafe"
 
 	"github.com/stewi1014/encs/enc"
 )
@@ -28,16 +26,6 @@ func (e *Encoder) Encode(v interface{}) error {
 		return enc.ErrNilPointer
 	}
 	val := reflect.ValueOf(v)
-	if val.Kind() != reflect.Ptr {
-		return fmt.Errorf("%v: values must be passed by reference", enc.ErrBadType)
-	}
-	if val.IsNil() {
-		return enc.ErrNilPointer
-	}
-	val = val.Elem()
-	if !val.CanAddr() {
-		return fmt.Errorf("%v: cannot get address of %v", enc.ErrBadType, val)
-	}
 
 	err := e.te.Encode(val.Type(), e.w)
 	if err != nil {
@@ -45,7 +33,7 @@ func (e *Encoder) Encode(v interface{}) error {
 	}
 
 	ec := e.getEncodable(val.Type())
-	return ec.Encode(unsafe.Pointer(val.UnsafeAddr()), e.w)
+	return enc.EncodeInterface(v, ec, e.w)
 }
 
 func (e *Encoder) getEncodable(t reflect.Type) enc.Encodable {

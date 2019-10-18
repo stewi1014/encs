@@ -1,10 +1,12 @@
-package encs
+package encs_test
 
 import (
 	"bytes"
 	"encoding/gob"
 	"reflect"
 	"testing"
+
+	"github.com/stewi1014/encs"
 )
 
 var testValues = []interface{}{
@@ -39,18 +41,18 @@ func testTypes() []reflect.Type {
 func TestBasicEncodeDecode(t *testing.T) {
 	buff := new(bytes.Buffer)
 
-	enc := NewEncoder(buff)
-	dec := NewDecoder(buff)
+	enc := encs.NewEncoder(buff)
+	dec := encs.NewDecoder(buff)
 
 	var decoded interface{}
 	for _, v := range testValues {
-		err := enc.Encode(&v)
+		err := enc.Encode(v)
 		if err != nil {
 			t.Errorf("encode error: %v", err)
 			return
 		}
 
-		err = dec.Decode(&decoded)
+		err = dec.DecodeInterface(&decoded)
 		if err != nil {
 			t.Errorf("decode error: %v", err)
 			return
@@ -68,8 +70,8 @@ func TestBasicEncodeDecode(t *testing.T) {
 
 func BenchmarkStream(b *testing.B) {
 	buff := new(bytes.Buffer)
-	enc := NewEncoder(buff)
-	dec := NewDecoder(buff)
+	enc := encs.NewEncoder(buff)
+	dec := encs.NewDecoder(buff)
 
 	var v interface{}
 	j := 0
@@ -78,7 +80,7 @@ func BenchmarkStream(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		err = dec.Decode(&v)
+		err = dec.DecodeInterface(&v)
 		if err != nil {
 			b.Fatal(err)
 		}

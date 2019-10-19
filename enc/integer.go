@@ -12,8 +12,8 @@ import (
 // These encoders have undefined behaviour if given the wrong type.
 
 // NewUint8 returns a new uint8 Encodable
-func NewUint8() Uint8 {
-	return Uint8{}
+func NewUint8() *Uint8 {
+	return &Uint8{}
 }
 
 // Uint8 is an Encodable for uint8s
@@ -22,17 +22,17 @@ type Uint8 struct {
 }
 
 // Size implements Encodable
-func (e Uint8) Size() int {
+func (e *Uint8) Size() int {
 	return 1
 }
 
 // Type implements Encodable
-func (e Uint8) Type() reflect.Type {
+func (e *Uint8) Type() reflect.Type {
 	return uint8Type
 }
 
 // Encode implements Encodable
-func (e Uint8) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Uint8) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -48,7 +48,7 @@ func (e Uint8) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Uint8) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Uint8) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -65,8 +65,8 @@ func (e Uint8) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUint16 returns a new uint16 Encodable
-func NewUint16() Uint16 {
-	return Uint16{}
+func NewUint16() *Uint16 {
+	return &Uint16{}
 }
 
 // Uint16 is an Encodable for uint16s
@@ -75,7 +75,7 @@ type Uint16 struct {
 }
 
 // Size implements Encodable
-func (e Uint16) Size() int {
+func (e *Uint16) Size() int {
 	return 2
 }
 
@@ -85,7 +85,7 @@ func (e Uint16) Type() reflect.Type {
 }
 
 // Encode implements Encodable
-func (e Uint16) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Uint16) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -103,7 +103,7 @@ func (e Uint16) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Uint16) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Uint16) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -119,8 +119,8 @@ func (e Uint16) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUint32 returns a new uint32 Encodable
-func NewUint32() Uint32 {
-	return Uint32{}
+func NewUint32() *Uint32 {
+	return &Uint32{}
 }
 
 // Uint32 is an Encodable for uint32s
@@ -129,17 +129,17 @@ type Uint32 struct {
 }
 
 // Size implements Encodable
-func (e Uint32) Size() int {
+func (e *Uint32) Size() int {
 	return 4
 }
 
 // Type implements Encodable
-func (e Uint32) Type() reflect.Type {
+func (e *Uint32) Type() reflect.Type {
 	return uint32Type
 }
 
 // Encode implements Encodable
-func (e Uint32) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Uint32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -159,7 +159,7 @@ func (e Uint32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Uint32) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Uint32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -177,8 +177,8 @@ func (e Uint32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUint64 returns a new uint64 Encodable
-func NewUint64() Uint64 {
-	return Uint64{}
+func NewUint64() *Uint64 {
+	return &Uint64{}
 }
 
 // Uint64 is an Encodable for uint64s
@@ -187,17 +187,17 @@ type Uint64 struct {
 }
 
 // Size implements Encodable
-func (e Uint64) Size() int {
+func (e *Uint64) Size() int {
 	return 8
 }
 
 // Type implements Encodable
-func (e Uint64) Type() reflect.Type {
+func (e *Uint64) Type() reflect.Type {
 	return uint64Type
 }
 
 // Encode implements Encodable
-func (e Uint64) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Uint64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -221,7 +221,7 @@ func (e Uint64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Uint64) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Uint64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -243,8 +243,8 @@ func (e Uint64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUint returns a new uint Encodable
-func NewUint() Uint {
-	return Uint{}
+func NewUint() *Uint {
+	return &Uint{}
 }
 
 // Uint is an Encodable for uints
@@ -257,17 +257,17 @@ const (
 )
 
 // Size implements Encodable
-func (e Uint) Size() int {
+func (e *Uint) Size() int {
 	return 9
 }
 
 // Type implements Encodable
-func (e Uint) Type() reflect.Type {
+func (e *Uint) Type() reflect.Type {
 	return uintType
 }
 
 // Encode implements Encodable
-func (e Uint) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Uint) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -288,7 +288,7 @@ func (e Uint) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Uint) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Uint) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -316,8 +316,8 @@ func (e Uint) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt8 returns a new int8 Encodable
-func NewInt8() Int8 {
-	return Int8{}
+func NewInt8() *Int8 {
+	return &Int8{}
 }
 
 // Int8 is an Encodable for int8s
@@ -326,17 +326,17 @@ type Int8 struct {
 }
 
 // Size implements Encodable
-func (e Int8) Size() int {
+func (e *Int8) Size() int {
 	return 1
 }
 
 // Type implements Encodable
-func (e Int8) Type() reflect.Type {
+func (e *Int8) Type() reflect.Type {
 	return int8Type
 }
 
 // Encode implements Encodable
-func (e Int8) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Int8) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -352,7 +352,7 @@ func (e Int8) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Int8) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Int8) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -368,8 +368,8 @@ func (e Int8) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt16 returns a new int16 Encodable
-func NewInt16() Int16 {
-	return Int16{}
+func NewInt16() *Int16 {
+	return &Int16{}
 }
 
 // Int16 is an Encodable for int16s
@@ -378,17 +378,17 @@ type Int16 struct {
 }
 
 // Size implements Encodable
-func (e Int16) Size() int {
+func (e *Int16) Size() int {
 	return 2
 }
 
 // Type implements Encodable
-func (e Int16) Type() reflect.Type {
+func (e *Int16) Type() reflect.Type {
 	return int16Type
 }
 
 // Encode implements Encodable
-func (e Int16) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Int16) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -407,7 +407,7 @@ func (e Int16) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Int16) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Int16) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -425,8 +425,8 @@ func (e Int16) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt32 returns a new int32 Encodable
-func NewInt32() Int32 {
-	return Int32{}
+func NewInt32() *Int32 {
+	return &Int32{}
 }
 
 // Int32 is an Encodable for int32s
@@ -435,17 +435,17 @@ type Int32 struct {
 }
 
 // Size implements Encodable
-func (e Int32) Size() int {
+func (e *Int32) Size() int {
 	return 4
 }
 
 // Type implements Encodable
-func (e Int32) Type() reflect.Type {
+func (e *Int32) Type() reflect.Type {
 	return int32Type
 }
 
 // Encode implements Encodable
-func (e Int32) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Int32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -466,7 +466,7 @@ func (e Int32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Int32) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Int32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -487,8 +487,8 @@ func (e Int32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt64 returns a new int64 Encodable
-func NewInt64() Int64 {
-	return Int64{}
+func NewInt64() *Int64 {
+	return &Int64{}
 }
 
 // Int64 is an Encodable for int64s
@@ -497,17 +497,17 @@ type Int64 struct {
 }
 
 // Size implements Encodable
-func (e Int64) Size() int {
+func (e *Int64) Size() int {
 	return 8
 }
 
 // Type implements Encodable
-func (e Int64) Type() reflect.Type {
+func (e *Int64) Type() reflect.Type {
 	return int64Type
 }
 
 // Encode implements Encodable
-func (e Int64) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Int64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -532,7 +532,7 @@ func (e Int64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Int64) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Int64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -557,8 +557,8 @@ func (e Int64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt returns a new int Encodable
-func NewInt() Int {
-	return Int{}
+func NewInt() *Int {
+	return &Int{}
 }
 
 // Int is an Encodable for intss
@@ -569,17 +569,17 @@ type Int struct {
 const minSingleInt = int8(-1<<7 + 9)
 
 // Size implements Encodable
-func (e Int) Size() int {
+func (e *Int) Size() int {
 	return 9
 }
 
 // Type implements Encodable
-func (e Int) Type() reflect.Type {
+func (e *Int) Type() reflect.Type {
 	return intType
 }
 
 // Encode implements Encodable
-func (e Int) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Int) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -606,7 +606,7 @@ func (e Int) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Int) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Int) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -640,8 +640,8 @@ func (e Int) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUintptr returns a new uintptr Encodable
-func NewUintptr() Uintptr {
-	return Uintptr{}
+func NewUintptr() *Uintptr {
+	return &Uintptr{}
 }
 
 // Uintptr is an Encodable for uintptrs
@@ -650,17 +650,17 @@ type Uintptr struct {
 }
 
 // Size implements Encodable
-func (e Uintptr) Size() int {
+func (e *Uintptr) Size() int {
 	return 9
 }
 
 // Type implements Encodable
-func (e Uintptr) Type() reflect.Type {
+func (e *Uintptr) Type() reflect.Type {
 	return uintptrType
 }
 
 // Encode implements Encodable
-func (e Uintptr) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Uintptr) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -688,7 +688,7 @@ func (e Uintptr) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Uintptr) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Uintptr) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}

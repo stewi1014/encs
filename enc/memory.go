@@ -6,8 +6,8 @@ import (
 )
 
 // NewMemory returns a new Memory encoder
-func NewMemory(size int) Memory {
-	return Memory{
+func NewMemory(size int) *Memory {
+	return &Memory{
 		len: size,
 		cap: size,
 	}
@@ -18,12 +18,12 @@ func NewMemory(size int) Memory {
 type Memory slicePtr
 
 // Size implemenets Sized
-func (m Memory) Size() int {
+func (m *Memory) Size() int {
 	return m.len
 }
 
 // Encode implements Encodable
-func (m Memory) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (m *Memory) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -32,7 +32,7 @@ func (m Memory) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Decodable
-func (m Memory) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (m *Memory) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}

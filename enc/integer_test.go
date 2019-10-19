@@ -2,7 +2,6 @@ package enc_test
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"math/bits"
 	"testing"
@@ -330,30 +329,9 @@ func TestInt(t *testing.T) {
 	}
 }
 
-func BenchmarkBinary(b *testing.B) {
-	uints := []uint64{
-		0,
-	}
-
-	buff := make([]byte, binary.MaxVarintLen64)
-	var buffer *bytes.Buffer
-	j := 0
-
-	for i := 0; i < b.N; i++ {
-		binary.PutUvarint(buff, uints[j])
-		buffer = bytes.NewBuffer(buff)
-		uint64Sink, _ = binary.ReadUvarint(buffer)
-
-		j++
-		if j >= len(uints) {
-			j = 0
-		}
-	}
-}
-
 func BenchmarkUint64(b *testing.B) {
 	uints := []uint64{
-		0,
+		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<64 - 1,
 	}
 
 	enc := enc.NewUint64()
@@ -376,7 +354,7 @@ func BenchmarkUint64(b *testing.B) {
 
 func BenchmarkUint(b *testing.B) {
 	uints := []uint{
-		0,
+		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1,
 	}
 
 	enc := enc.NewUint()
@@ -387,9 +365,6 @@ func BenchmarkUint(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		enc.Encode(unsafe.Pointer(&uints[j]), buff)
 		enc.Decode(unsafe.Pointer(unsafe.Pointer(&u)), buff)
-		if buff.Len() != 0 {
-			b.Fatalf("data remaining in buffer %v", buff.Bytes())
-		}
 		j++
 		if j >= len(uints) {
 			j = 0
@@ -399,11 +374,7 @@ func BenchmarkUint(b *testing.B) {
 
 func BenchmarkInt(b *testing.B) {
 	ints := []int{
-		0,
-		-1,
-		255,
-		1<<(bits.UintSize-1) - 1,
-		21396478,
+		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<(bits.UintSize-1) - 1, -1, -1 << 63,
 	}
 
 	enc := enc.NewInt()

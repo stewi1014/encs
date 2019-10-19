@@ -1,6 +1,7 @@
 package enc
 
 import (
+	"encoding"
 	"errors"
 	"fmt"
 	"hash"
@@ -8,11 +9,12 @@ import (
 	"io"
 	"reflect"
 	"sync"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
 
-// Basic type constants
+// Type constants
 var (
 	intType        = reflect.TypeOf(int(0))
 	int8Type       = reflect.TypeOf(int8(0))
@@ -31,9 +33,18 @@ var (
 	complex128Type = reflect.TypeOf(complex128(0))
 	stringType     = reflect.TypeOf(string(""))
 	boolType       = reflect.TypeOf(bool(true))
-	interfaceType  = reflect.TypeOf(new(interface{})).Elem()
+
+	timeTimeType  = reflect.TypeOf(time.Time{})
+	interfaceType = reflect.TypeOf(new(interface{})).Elem()
 
 	invalidType = reflect.TypeOf(nil)
+)
+
+// Interface type constants
+var (
+	binaryMarshalerIface   = reflect.TypeOf(new(encoding.BinaryMarshaler)).Elem()
+	binaryUnmarshalerIface = reflect.TypeOf(new(encoding.BinaryUnmarshaler)).Elem()
+	encodableIface         = reflect.TypeOf(new(Encodable)).Elem()
 )
 
 // TypeFromKind returns a reflect.Type for the given kind.
@@ -150,6 +161,7 @@ func NewTypeRegistry(hasher hash.Hash64) *TypeRegistry {
 	}
 
 	r.Register(new(interface{}))
+	r.Register(time.Time{})
 
 	return r
 }

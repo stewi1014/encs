@@ -1,6 +1,7 @@
 package enc
 
 import (
+	"encoding"
 	"fmt"
 	"io"
 	"reflect"
@@ -8,8 +9,8 @@ import (
 )
 
 // NewString returns a new string Encodable
-func NewString() String {
-	return String{
+func NewString() *String {
+	return &String{
 		buff: make([]byte, 4),
 	}
 }
@@ -20,17 +21,17 @@ type String struct {
 }
 
 // Size implemenets Encodable
-func (e String) Size() int {
+func (e *String) Size() int {
 	return -1 << 31
 }
 
 // Type implements Encodable
-func (e String) Type() reflect.Type {
+func (e *String) Type() reflect.Type {
 	return stringType
 }
 
 // Encode implemenets Encodable
-func (e String) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -48,7 +49,7 @@ func (e String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implemenets Encodable
-func (e String) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -79,8 +80,8 @@ func (e String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewBool returns a new bool Encodable
-func NewBool() Bool {
-	return Bool{
+func NewBool() *Bool {
+	return &Bool{
 		buff: make([]byte, 1),
 	}
 }
@@ -91,17 +92,17 @@ type Bool struct {
 }
 
 // Size implements Sized
-func (e Bool) Size() int {
+func (e *Bool) Size() int {
 	return 1
 }
 
 // Type implements Encodable
-func (e Bool) Type() reflect.Type {
+func (e *Bool) Type() reflect.Type {
 	return boolType
 }
 
 // Encode implements Encodable
-func (e Bool) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Bool) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -110,7 +111,7 @@ func (e Bool) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Bool) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Bool) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -119,4 +120,126 @@ func (e Bool) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 	*(*byte)(ptr) = e.buff[0]
 	return nil
+}
+
+// NewBinaryMarshaler returns a new BinaryMarshaler Encodable.
+// It can internally handle a reference;
+// i.e. time.Time's unmarshal function requires a reference, but both
+// time.Time and *time.Time will function here, as long at ptr is *time.Time or **time.Time respectively.
+func NewBinaryMarshaler(t reflect.Type) *BinaryMarshaler {
+	e := &BinaryMarshaler{
+		t: t,
+	}
+
+	err := implementsBinaryMarshaler(t)
+	if err != nil {
+		if implementsBinaryMarshaler(reflect.PtrTo(t)) != nil {
+			panic(err)
+		}
+		//init referenced
+		e.createReference = true
+		ival := reflect.ValueOf(&e.i).Elem()
+		ival.Set(reflect.New(t))
+
+	} else {
+		//init direct
+		ival := reflect.ValueOf(&e.i).Elem()
+		ival.Set(reflect.New(t).Elem())
+	}
+
+	return e
+}
+
+// BinaryMarshaler is an Encodable for types which implement encoding.BinaryMarshaler and encoding.BinaryUnmarshaler.
+type BinaryMarshaler struct {
+	t               reflect.Type
+	i               binaryMarshaler
+	createReference bool
+	buff            [4]byte
+}
+
+type binaryMarshaler interface {
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+}
+
+func implementsBinaryMarshaler(t reflect.Type) error {
+	if !t.Implements(binaryMarshalerIface) {
+		return fmt.Errorf("%v does not implement encoding.BinaryMarshaler", t)
+	}
+	if !t.Implements(binaryUnmarshalerIface) {
+		return fmt.Errorf("%v does not implement encoding.BinaryUnarshaler", t)
+	}
+	return nil
+}
+
+func (e *BinaryMarshaler) setIface(ptr unsafe.Pointer) {
+	if e.createReference {
+		reflect.ValueOf(&e.i).Elem().Set(reflect.NewAt(e.t, ptr))
+		return
+	}
+	reflect.ValueOf(&e.i).Elem().Set(reflect.NewAt(e.t, ptr).Elem())
+}
+
+// Type implements Encodable
+func (e *BinaryMarshaler) Type() reflect.Type {
+	return e.t
+}
+
+// Size implements Encodable
+func (e *BinaryMarshaler) Size() int {
+	return -1 << 31
+}
+
+// Encode implements Encodable
+func (e *BinaryMarshaler) Encode(ptr unsafe.Pointer, w io.Writer) error {
+	if ptr == nil {
+		return ErrNilPointer
+	}
+
+	e.setIface(ptr)
+
+	buff, err := e.i.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	l := uint32(len(buff))
+	e.buff[0] = uint8(l)
+	e.buff[1] = uint8(l >> 8)
+	e.buff[2] = uint8(l >> 16)
+	e.buff[3] = uint8(l >> 24)
+	if err := write(e.buff[:], w); err != nil {
+		return err
+	}
+
+	return write(buff, w)
+}
+
+// Decode implements Encodable
+func (e *BinaryMarshaler) Decode(ptr unsafe.Pointer, r io.Reader) error {
+	if ptr == nil {
+		return ErrNilPointer
+	}
+
+	if err := read(e.buff[:], r); err != nil {
+		return err
+	}
+
+	l := uint32(e.buff[0])
+	l |= uint32(e.buff[1]) << 8
+	l |= uint32(e.buff[2]) << 16
+	l |= uint32(e.buff[3]) << 24
+	if l > TooBig {
+		return fmt.Errorf("%v: reported BinaryMarshaler buffer size is too large", ErrMalformed)
+	}
+
+	buff := make([]byte, l)
+	if err := read(buff, r); err != nil {
+		return err
+	}
+
+	e.setIface(ptr)
+
+	return e.i.UnmarshalBinary(buff)
 }

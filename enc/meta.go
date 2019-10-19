@@ -27,7 +27,7 @@ func newPointer(t reflect.Type, config *Config) (enc Encodable) {
 		config = new(Config)
 	}
 
-	p := &Pointer{
+	p := Pointer{
 		ty:   t,
 		buff: make([]byte, 1),
 	}
@@ -51,17 +51,17 @@ const (
 )
 
 // Size implements Sized
-func (p *Pointer) Size() int {
+func (p Pointer) Size() int {
 	return p.elem.Size() + 5
 }
 
 // Type implements Encodable
-func (p *Pointer) Type() reflect.Type {
+func (p Pointer) Type() reflect.Type {
 	return p.ty
 }
 
 // Encode implements Encodable
-func (p *Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (p Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -70,7 +70,7 @@ func (p *Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (p *Pointer) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (p Pointer) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -87,6 +87,10 @@ func NewMap(t reflect.Type, config *Config) Map {
 }
 
 func newMap(t reflect.Type, config *Config) Map {
+	if t.Kind() != reflect.Map {
+		panic(fmt.Errorf("%v: %v is not a map", ErrBadType, t))
+	}
+
 	return Map{
 		key:  newEncodable(t.Key(), config),
 		val:  newEncodable(t.Elem(), config),
@@ -310,6 +314,9 @@ func (e Interface) getEncodable(t reflect.Type) Encodable {
 
 // NewSlice returns a new slice Encodable
 func NewSlice(t reflect.Type, config *Config) Slice {
+	if t.Kind() != reflect.Slice {
+		panic(fmt.Errorf("%v: %v is not a slice", ErrBadType, t))
+	}
 	if config != nil {
 		config = config.copy()
 	}
@@ -414,6 +421,9 @@ func NewArray(t reflect.Type, config *Config) Array {
 }
 
 func newArray(t reflect.Type, config *Config) Array {
+	if t.Kind() != reflect.Array {
+		panic(fmt.Errorf("%v: %v is not an array", ErrBadType, t))
+	}
 	return Array{
 		elem: newEncodable(t.Elem(), config),
 		len:  uintptr(t.Len()),

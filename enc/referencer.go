@@ -44,6 +44,7 @@ const (
 // newEncodable returns the concurrent-safe encodable for the type t, creating if needed.
 // that is, a recursive-safe Encodable. Recursive types *must* use this instead of NewEncodable when resolving
 // their element types, else they loop to infinity.
+// also, they must be concurrent safe on the off chance that a type embeds itself, in which case it will call itself from inside Encode and Decode.
 func (ref *referencer) newEncodable(t reflect.Type, c *Config) Encodable {
 	if enc, ok := ref.encoders[t]; ok {
 		return enc
@@ -148,110 +149,3 @@ func (ref *referencer) Type() reflect.Type {
 func (ref *referencer) Size() int {
 	return ref.enc.Size()
 }
-
-/*
-func newRecursiveParent(elem Encodable) *pointerParent {
-	rp := &pointerParent{
-		elem: elem,
-		buff: make([]byte, 5),
-	}
-	if i, ok := elem.(initialiser); ok {
-		i.init(rp)
-	}
-	return rp
-}
-
-// pointerParent wraps a type with pointers, encoding the pointers
-type pointerParent struct {
-	// both
-	indexes []unsafe.Pointer
-	buff    []byte
-	off     int
-	elem    Encodable
-}
-
-func (p *pointerParent) Size() int {
-	if sized, ok := p.elem.(Sized); ok {
-		return sized.Size()
-	}
-	return -1 << 31
-}
-
-func (p *pointerParent) Type() reflect.Type {
-	return p.elem.Type()
-}
-
-func (p *pointerParent) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	p.w = w
-	p.off = 0
-	p.indexes = p.indexes[:0]
-	return p.elem.Encode(ptr, p)
-}
-
-func (p *pointerParent) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	p.r = r
-	p.off = 0
-	p.indexes = p.indexes[:0]
-	return p.elem.Decode(ptr, p)
-}
-
-// newEncoded notifies the parent that the object at the address ptr is being encoded at the current buffer index.
-// if the object has already been encoded, seen is true.
-// It writes up to 5 bytes (1 or 5).
-func (p *pointerParent) newEncoded(ptr unsafe.Pointer) (seen bool, err error) {
-	for i, ep := range p.indexes {
-		if ep == ptr {
-			seen = true
-			err = p.writeLink(uint32(i))
-			return
-		}
-	}
-
-	p.buff[0] = firstInstance
-	err = write(p.buff[:1], p)
-	return
-}
-
-func (p *pointerParent) writeLink(index uint32) error {
-	p.buff[0] = linked
-	p.buff[1] = uint8(index)
-	p.buff[2] = uint8(index >> 8)
-	p.buff[3] = uint8(index >> 16)
-	p.buff[4] = uint8(index >> 24)
-
-	return write(p.buff, p)
-}
-
-// newDecoded attempts to read a link from the buffer. If successful, the decoder can point to the returned address instead of decoding.
-// If it's the first instance of the value, firstDecode will be non-nil, the value should be decoded, and the address passed to finishDecode.
-func (p *pointerParent) newDecoded() (ptr unsafe.Pointer, firstDecode func(unsafe.Pointer), err error) {
-	err = read(p.buff[:1], p)
-	if err != nil {
-		return
-	}
-
-	if p.buff[0] == firstInstance {
-		firstDecode = func(ptr unsafe.Pointer) {
-			p.indexes = append(p.indexes, ptr)
-		}
-		return
-	}
-
-	err = read(p.buff[:4], p)
-	if err != nil {
-		return
-	}
-
-	i := uint32(p.buff[0])
-	i |= uint32(p.buff[1]) << 8
-	i |= uint32(p.buff[2]) << 16
-	i |= uint32(p.buff[3]) << 24
-	if i >= uint32(len(p.indexes)) {
-		err = fmt.Errorf("%v: given link index is out of bounds", ErrMalformed)
-		return
-	}
-
-	ptr = p.indexes[i]
-	return
-}
-*/

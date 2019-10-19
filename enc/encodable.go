@@ -105,59 +105,65 @@ func newEncodable(t reflect.Type, config *Config) Encodable {
 		config = new(Config)
 	}
 
-	switch t.Kind() {
+	ptrt := reflect.PtrTo(t)
+	kind := t.Kind()
+	switch {
+	// Implementers
+	case ptrt.Implements(binaryMarshalerIface) && ptrt.Implements(binaryUnmarshalerIface):
+		return NewBinaryMarshaler(t)
+
 	// Meta-Types
-	case reflect.Ptr:
+	case kind == reflect.Ptr:
 		return newPointer(t, config)
-	case reflect.Interface:
+	case kind == reflect.Interface:
 		return newInterface(t, config)
-	case reflect.Struct:
+	case kind == reflect.Struct:
 		return newStruct(t, config)
-	case reflect.Array:
+	case kind == reflect.Array:
 		return newArray(t, config)
-	case reflect.Slice:
+	case kind == reflect.Slice:
 		return newSlice(t, config)
-	case reflect.Map:
+	case kind == reflect.Map:
 		return newMap(t, config)
 
 	// Integer types
-	case reflect.Uint8:
+	case kind == reflect.Uint8:
 		return NewUint8()
-	case reflect.Uint16:
+	case kind == reflect.Uint16:
 		return NewUint16()
-	case reflect.Uint32:
+	case kind == reflect.Uint32:
 		return NewUint32()
-	case reflect.Uint64:
+	case kind == reflect.Uint64:
 		return NewUint64()
-	case reflect.Uint:
+	case kind == reflect.Uint:
 		return NewUint()
-	case reflect.Int8:
+	case kind == reflect.Int8:
 		return NewInt8()
-	case reflect.Int16:
+	case kind == reflect.Int16:
 		return NewInt16()
-	case reflect.Int32:
+	case kind == reflect.Int32:
 		return NewInt32()
-	case reflect.Int64:
+	case kind == reflect.Int64:
 		return NewInt64()
-	case reflect.Int:
+	case kind == reflect.Int:
 		return NewInt()
-	case reflect.Uintptr:
+	case kind == reflect.Uintptr:
 		return NewUintptr()
 
 	// Float types
-	case reflect.Float32:
+	case kind == reflect.Float32:
 		return NewFloat32()
-	case reflect.Float64:
+	case kind == reflect.Float64:
 		return NewFloat64()
-	case reflect.Complex64:
+	case kind == reflect.Complex64:
 		return NewComplex64()
-	case reflect.Complex128:
+	case kind == reflect.Complex128:
 		return NewComplex128()
 
 	// Misc types
-	case reflect.Bool:
+	case kind == reflect.Bool:
 		return NewBool()
-	case reflect.String:
+	case kind == reflect.String:
 		return NewString()
 	}
 

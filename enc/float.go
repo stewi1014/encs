@@ -9,8 +9,8 @@ import (
 )
 
 // NewFloat32 returns a new float32 Encodable.
-func NewFloat32() Float32 {
-	return Float32{
+func NewFloat32() *Float32 {
+	return &Float32{
 		buff: make([]byte, 4),
 	}
 }
@@ -21,17 +21,17 @@ type Float32 struct {
 }
 
 // Size implemenets Sized
-func (e Float32) Size() int {
+func (e *Float32) Size() int {
 	return 4
 }
 
 // Type implements Encodable
-func (e Float32) Type() reflect.Type {
+func (e *Float32) Type() reflect.Type {
 	return float32Type
 }
 
 // Encode implements Encodable
-func (e Float32) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Float32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -45,7 +45,7 @@ func (e Float32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Float32) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Float32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -62,15 +62,10 @@ func (e Float32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewFloat64 returns a new float64 Encodable.
-func NewFloat64() Float64 {
-	return Float64{
+func NewFloat64() *Float64 {
+	return &Float64{
 		buff: make([]byte, 8),
 	}
-}
-
-// Size implemenets Sized
-func (e Float64) Size() int {
-	return 8
 }
 
 // Float64 is an Encodable for float64s
@@ -78,13 +73,18 @@ type Float64 struct {
 	buff []byte
 }
 
+// Size implemenets Sized
+func (e *Float64) Size() int {
+	return 8
+}
+
 // Type implements Encodable
-func (e Float64) Type() reflect.Type {
+func (e *Float64) Type() reflect.Type {
 	return float64Type
 }
 
 // Encode implements Encodable
-func (e Float64) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Float64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -102,7 +102,7 @@ func (e Float64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Float64) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Float64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -123,8 +123,8 @@ func (e Float64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewComplex64 returns a new complex128 Encodable
-func NewComplex64() Complex64 {
-	return Complex64{
+func NewComplex64() *Complex64 {
+	return &Complex64{
 		buff: make([]byte, 8),
 	}
 }
@@ -135,17 +135,17 @@ type Complex64 struct {
 }
 
 // Size implemenets Sized
-func (e Complex64) Size() int {
+func (e *Complex64) Size() int {
 	return 8
 }
 
 // Type implements Encodable
-func (e Complex64) Type() reflect.Type {
+func (e *Complex64) Type() reflect.Type {
 	return complex64Type
 }
 
 // Encode implements Encodable
-func (e Complex64) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Complex64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -165,7 +165,7 @@ func (e Complex64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Complex64) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Complex64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -188,8 +188,8 @@ func (e Complex64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewComplex128 returns a new complex128 Encodable
-func NewComplex128() Complex128 {
-	return Complex128{
+func NewComplex128() *Complex128 {
+	return &Complex128{
 		buff: make([]byte, 16),
 	}
 }
@@ -200,17 +200,17 @@ type Complex128 struct {
 }
 
 // Size implemenets Sized
-func (e Complex128) Size() int {
+func (e *Complex128) Size() int {
 	return 16
 }
 
 // Type implements Encodable
-func (e Complex128) Type() reflect.Type {
+func (e *Complex128) Type() reflect.Type {
 	return complex128Type
 }
 
 // Encode implements Encodable
-func (e Complex128) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Complex128) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -238,7 +238,7 @@ func (e Complex128) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Complex128) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Complex128) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}

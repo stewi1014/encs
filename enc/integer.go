@@ -21,6 +21,10 @@ type Uint8 struct {
 	buff [1]byte
 }
 
+func (e *Uint8) String() string {
+	return "Uint8"
+}
+
 // Size implements Encodable
 func (e *Uint8) Size() int {
 	return 1
@@ -72,6 +76,10 @@ func NewUint16() *Uint16 {
 // Uint16 is an Encodable for uint16s
 type Uint16 struct {
 	buff [2]byte
+}
+
+func (e *Uint16) String() string {
+	return "Uint16"
 }
 
 // Size implements Encodable
@@ -126,6 +134,10 @@ func NewUint32() *Uint32 {
 // Uint32 is an Encodable for uint32s
 type Uint32 struct {
 	buff [4]byte
+}
+
+func (e *Uint32) String() string {
+	return "Uint32"
 }
 
 // Size implements Encodable
@@ -189,6 +201,10 @@ type Uint64 struct {
 // Size implements Encodable
 func (e *Uint64) Size() int {
 	return 8
+}
+
+func (e *Uint64) String() string {
+	return "Uint64"
 }
 
 // Type implements Encodable
@@ -256,6 +272,10 @@ const (
 	maxSingleUint = 255 - 8
 )
 
+func (e *Uint) String() string {
+	return "Uint"
+}
+
 // Size implements Encodable
 func (e *Uint) Size() int {
 	return 9
@@ -320,6 +340,10 @@ func NewInt8() *Int8 {
 	return &Int8{}
 }
 
+func (e *Int8) String() string {
+	return "Int8"
+}
+
 // Int8 is an Encodable for int8s
 type Int8 struct {
 	buff [1]byte
@@ -377,6 +401,10 @@ type Int16 struct {
 	buff [2]byte
 }
 
+func (e *Int16) String() string {
+	return "Int16"
+}
+
 // Size implements Encodable
 func (e *Int16) Size() int {
 	return 2
@@ -432,6 +460,10 @@ func NewInt32() *Int32 {
 // Int32 is an Encodable for int32s
 type Int32 struct {
 	buff [4]byte
+}
+
+func (e *Int32) String() string {
+	return "Int32"
 }
 
 // Size implements Encodable
@@ -494,6 +526,10 @@ func NewInt64() *Int64 {
 // Int64 is an Encodable for int64s
 type Int64 struct {
 	buff [8]byte
+}
+
+func (e *Int64) String() string {
+	return "Int64"
 }
 
 // Size implements Encodable
@@ -567,6 +603,10 @@ type Int struct {
 }
 
 const minSingleInt = int8(-1<<7 + 9)
+
+func (e *Int) String() string {
+	return "Int"
+}
 
 // Size implements Encodable
 func (e *Int) Size() int {
@@ -647,6 +687,10 @@ func NewUintptr() *Uintptr {
 // Uintptr is an Encodable for uintptrs
 type Uintptr struct {
 	buff [9]byte
+}
+
+func (e *Uintptr) String() string {
+	return "Uintptr"
 }
 
 // Size implements Encodable

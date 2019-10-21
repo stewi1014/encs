@@ -14,7 +14,7 @@ func EncodeInterface(i interface{}, e Encodable, w io.Writer) error {
 	}
 
 	iptr := ptrInterface(unsafe.Pointer(&i))
-	return e.Encode(iptr.ptr, w)
+	return e.Encode(iptr.ptr(), w)
 }
 
 // DecodeInterface decodes the value read from r into the interface.
@@ -30,5 +30,5 @@ func DecodeInterface(i *interface{}, e Encodable, r io.Reader) error {
 	}
 
 	iptr := ptrInterface(unsafe.Pointer(i))
-	return e.Decode(iptr.ptr, r)
+	return e.Decode(iptr.ptr(), r)
 }

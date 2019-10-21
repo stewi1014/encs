@@ -21,7 +21,7 @@ func NewDecoder(r io.Reader) *Decoder {
 // Decoder decodes data into passed values.
 type Decoder struct {
 	r        io.Reader
-	te       enc.Type
+	te       enc.Resolver
 	decoders map[reflect.Type]enc.Encodable
 }
 
@@ -44,7 +44,7 @@ func (d *Decoder) Decode(v interface{}) error {
 		return fmt.Errorf("%v: cannot set value of %v", enc.ErrBadType, val)
 	}
 
-	ty, err := d.te.Decode(d.r)
+	ty, err := d.te.Decode(val.Type(), d.r)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,12 @@ func (d *Decoder) DecodeInterface(i *interface{}) error {
 		return fmt.Errorf("%v: cannot set value of %v", enc.ErrBadType, ival)
 	}
 
-	ty, err := d.te.Decode(d.r)
+	var elemt reflect.Type
+	if !ival.IsNil() {
+		elemt = ival.Elem().Type()
+	}
+
+	ty, err := d.te.Decode(elemt, d.r)
 	if err != nil {
 		return err
 	}
@@ -83,7 +88,7 @@ func (d *Decoder) getEncodable(t reflect.Type) enc.Encodable {
 	}
 
 	config := &enc.Config{
-		TypeEncoder: d.te,
+		Resolver: d.te,
 	}
 
 	e := enc.NewEncodable(t, config)

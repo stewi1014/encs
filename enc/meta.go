@@ -5,6 +5,7 @@ import (
 	"io"
 	"reflect"
 	"sort"
+	"time"
 	"unicode"
 	"unicode/utf8"
 	"unsafe"
@@ -18,7 +19,7 @@ func NewPointer(t reflect.Type, config *Config) Encodable {
 	return newPointer(t, config)
 }
 
-func newPointer(t reflect.Type, config *Config) (enc Encodable) {
+func newPointer(t reflect.Type, config *Config) (enc Encodable) { // TODO; improve performance in some cases by not using referencer when we can garuntee no self-references *that does not mean only recursive types*.
 	if t.Kind() != reflect.Ptr {
 		panic(fmt.Errorf("%v: %v is not a pointer", ErrBadType, t))
 	}
@@ -27,13 +28,13 @@ func newPointer(t reflect.Type, config *Config) (enc Encodable) {
 		config = new(Config)
 	}
 
-	p := Pointer{
+	e := &Pointer{
 		ty:   t,
 		buff: make([]byte, 1),
 	}
 
-	p.r, enc = config.referencer(p)
-	p.elem = p.r.newEncodable(t.Elem(), config)
+	e.r, enc = config.referencer(e)
+	e.elem = e.r.newEncodable(t.Elem(), config)
 	return
 }
 
@@ -50,48 +51,57 @@ const (
 	nilPtr
 )
 
+func (e *Pointer) String() string {
+	if e.r != nil {
+		// Not particularly relevant to callers except that when using strings to equality check,
+		// the configuration of the resolver is important; it effects the encoded format.
+		return fmt.Sprintf("Pointer(resolver at %v){%v}", e.r.Type().String(), e.elem.String())
+	}
+	return fmt.Sprintf("Pointer{%v}", e.elem.String())
+}
+
 // Size implements Sized
-func (p Pointer) Size() int {
-	return p.elem.Size() + 5
+func (e *Pointer) Size() int {
+	return e.elem.Size() + 5
 }
 
 // Type implements Encodable
-func (p Pointer) Type() reflect.Type {
-	return p.ty
+func (e *Pointer) Type() reflect.Type {
+	return e.ty
 }
 
 // Encode implements Encodable
-func (p Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
 
-	return p.r.encodeReference(*(*unsafe.Pointer)(ptr), p.elem, w)
+	return e.r.encodeReference(*(*unsafe.Pointer)(ptr), e.elem, w)
 }
 
 // Decode implements Encodable
-func (p Pointer) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Pointer) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
 
-	return p.r.decodeReference((*unsafe.Pointer)(ptr), p.elem, r)
+	return e.r.decodeReference((*unsafe.Pointer)(ptr), e.elem, r)
 }
 
 // NewMap returns a new map Encodable
-func NewMap(t reflect.Type, config *Config) Map {
+func NewMap(t reflect.Type, config *Config) *Map {
 	if config != nil {
 		config = config.copy()
 	}
 	return newMap(t, config)
 }
 
-func newMap(t reflect.Type, config *Config) Map {
+func newMap(t reflect.Type, config *Config) *Map {
 	if t.Kind() != reflect.Map {
 		panic(fmt.Errorf("%v: %v is not a map", ErrBadType, t))
 	}
 
-	return Map{
+	return &Map{
 		key:  newEncodable(t.Key(), config),
 		val:  newEncodable(t.Elem(), config),
 		buff: make([]byte, 4),
@@ -106,18 +116,22 @@ type Map struct {
 	t        reflect.Type
 }
 
+func (e *Map) String() string {
+	return fmt.Sprintf("Map[%v]{%v}", e.key, e.val)
+}
+
 // Size implements Encodable
-func (e Map) Size() int {
+func (e *Map) Size() int {
 	return -1 << 31
 }
 
 // Type implements Encodable
-func (e Map) Type() reflect.Type {
+func (e *Map) Type() reflect.Type {
 	return e.t
 }
 
 // Encode implements Encodable
-func (e Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -149,7 +163,7 @@ func (e Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -185,7 +199,7 @@ func (e Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInterface returns a new interface Encodable
-func NewInterface(t reflect.Type, config *Config) Encodable {
+func NewInterface(t reflect.Type, config *Config) Encodable { // TODO; improve performance in some cases by not using a referencer in cases where we can garuntee no self-references.
 	if config != nil {
 		config = config.copy()
 	}
@@ -196,19 +210,19 @@ func newInterface(t reflect.Type, config *Config) (enc Encodable) {
 	if t.Kind() != reflect.Interface {
 		panic(fmt.Errorf("%v: %v is not an interface", ErrBadType, t))
 	}
-	if config == nil || config.TypeEncoder == nil {
-		panic(fmt.Errorf("Interface Encodable needs non-nil TypeEncoder"))
+	if config == nil || config.Resolver == nil {
+		panic(fmt.Errorf("Interface Encodable needs non-nil Resolver"))
 	}
 
-	i := Interface{
+	i := &Interface{
 		t:        t,
+		config:   config,
 		encoders: make(map[reflect.Type]Encodable),
 		buff:     make([]byte, 1),
-		config:   config,
 	}
 
-	_, enc = config.referencer(i) // config stores *referencer; just use it's reference.
-	return
+	_, enc = config.referencer(i)
+	return enc
 }
 
 // Interface is an Encodable for interfaces
@@ -224,18 +238,22 @@ const (
 	ifNonNil
 )
 
+func (e *Interface) String() string {
+	return fmt.Sprintf("Interface(Type: %v, %v)", e.t.String(), e.config.String())
+}
+
 // Size implements Encodable
-func (e Interface) Size() int {
+func (e *Interface) Size() int {
 	return -1 << 31
 }
 
 // Type implements Encodable
-func (e Interface) Type() reflect.Type {
+func (e *Interface) Type() reflect.Type {
 	return e.t
 }
 
 // Encode implements Encodable
-func (e Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -254,17 +272,20 @@ func (e Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 	elemType := i.Elem().Type()
 
-	err = e.config.TypeEncoder.Encode(elemType, w)
+	err = e.config.Resolver.Encode(elemType, w)
 	if err != nil {
 		return err
 	}
 
 	elemEnc := e.getEncodable(elemType)
-	return e.config.r.encodeReference(ptrInterface(ptr).ptr, elemEnc, w)
+	if e.config.r != nil {
+		return e.config.r.encodeReference(ptrInterface(ptr).ptr(), elemEnc, w)
+	}
+	return elemEnc.Encode(ptrInterface(ptr).ptr(), w)
 }
 
 // Decode implements Encodable
-func (e Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -280,29 +301,51 @@ func (e Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		return nil
 	}
 
-	ty, err := e.config.TypeEncoder.Decode(r)
+	var elemt reflect.Type
+	if !i.IsNil() {
+		elemt = i.Elem().Type()
+	}
+
+	ty, err := e.config.Resolver.Decode(elemt, r)
 	if err != nil {
 		return err
 	}
 
+	// decode, pointing eptr to the decoded value.
 	var eptr unsafe.Pointer
 	// re-use existing pointer if possible
-	if !i.IsNil() && i.Elem().Type() == ty {
-		eptr = unsafe.Pointer(i.Elem().UnsafeAddr())
+	if elemt == ty {
+		eptr = unsafe.Pointer(ptrInterface(ptr).ptr())
 	}
 
 	enc := e.getEncodable(ty)
-	err = e.config.r.decodeReference(&eptr, enc, r)
-	if err != nil {
-		return err
+	if e.config.r != nil {
+		// decode into eptr with referencer
+		if err := e.config.r.decodeReference(&eptr, enc, r); err != nil {
+			return err
+		}
 	}
-
-	new := reflect.NewAt(ty, eptr).Elem()
-	i.Set(new)
+	// do our own decoding
+	var new reflect.Value
+	if eptr == nil {
+		// we couldn't re-use our old value
+		new = reflect.New(enc.Type())
+		eptr = unsafe.Pointer(new.Pointer())
+		if err := enc.Decode(eptr, r); err != nil {
+			return err
+		}
+	} else {
+		// we could re-use our old value
+		new = reflect.NewAt(enc.Type(), eptr)
+		if err := enc.Decode(eptr, r); err != nil {
+			return err
+		}
+	}
+	i.Set(new.Elem())
 	return nil
 }
 
-func (e Interface) getEncodable(t reflect.Type) Encodable {
+func (e *Interface) getEncodable(t reflect.Type) Encodable {
 	if enc, ok := e.encoders[t]; ok {
 		return enc
 	}
@@ -313,7 +356,7 @@ func (e Interface) getEncodable(t reflect.Type) Encodable {
 }
 
 // NewSlice returns a new slice Encodable
-func NewSlice(t reflect.Type, config *Config) Slice {
+func NewSlice(t reflect.Type, config *Config) *Slice {
 	if t.Kind() != reflect.Slice {
 		panic(fmt.Errorf("%v: %v is not a slice", ErrBadType, t))
 	}
@@ -323,8 +366,8 @@ func NewSlice(t reflect.Type, config *Config) Slice {
 	return newSlice(t, config)
 }
 
-func newSlice(t reflect.Type, config *Config) Slice {
-	return Slice{
+func newSlice(t reflect.Type, config *Config) *Slice {
+	return &Slice{
 		elem: newEncodable(t.Elem(), config),
 		buff: make([]byte, 4),
 	}
@@ -336,36 +379,40 @@ type Slice struct {
 	buff []byte
 }
 
+func (e *Slice) String() string {
+	return fmt.Sprintf("Slice[%v]", e.elem)
+}
+
 // Size implemenets Encodable
-func (s Slice) Size() int {
+func (e *Slice) Size() int {
 	return -1 << 31
 }
 
 // Type implements Encodable
-func (s Slice) Type() reflect.Type {
-	return reflect.SliceOf(s.elem.Type())
+func (e *Slice) Type() reflect.Type {
+	return reflect.SliceOf(e.elem.Type())
 }
 
 // Encode implements Encodable
-func (s Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
 	sptr := ptrSlice(ptr)
 	l := uint32(sptr.len)
-	s.buff[0] = uint8(l)
-	s.buff[1] = uint8(l >> 8)
-	s.buff[2] = uint8(l >> 16)
-	s.buff[3] = uint8(l >> 24)
-	if err := write(s.buff, w); err != nil {
+	e.buff[0] = uint8(l)
+	e.buff[1] = uint8(l >> 8)
+	e.buff[2] = uint8(l >> 16)
+	e.buff[3] = uint8(l >> 24)
+	if err := write(e.buff, w); err != nil {
 		return err
 	}
 
-	esize := s.elem.Type().Size()
+	esize := e.elem.Type().Size()
 
 	for i := uint32(0); i < l; i++ {
 		eptr := unsafe.Pointer(uintptr(sptr.array) + uintptr(i)*esize)
-		err := s.elem.Encode(eptr, w)
+		err := e.elem.Encode(eptr, w)
 		if err != nil {
 			return err
 		}
@@ -374,23 +421,23 @@ func (s Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implemenets Encodable
-func (s Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
-	if err := read(s.buff, r); err != nil {
+	if err := read(e.buff, r); err != nil {
 		return err
 	}
 
-	l := uint32(s.buff[0])
-	l |= uint32(s.buff[1]) << 8
-	l |= uint32(s.buff[2]) << 16
-	l |= uint32(s.buff[3]) << 24
+	l := uint32(e.buff[0])
+	l |= uint32(e.buff[1]) << 8
+	l |= uint32(e.buff[2]) << 16
+	l |= uint32(e.buff[3]) << 24
 
 	sptr := ptrSlice(ptr)
-	size := s.elem.Type().Size()
+	size := e.elem.Type().Size()
 
-	if uintptr(l)*size > TooBig {
+	if uintptr(l)*size > uintptr(TooBig) {
 		return fmt.Errorf("%v: size descriptor for slice is too big", ErrMalformed)
 	}
 
@@ -403,7 +450,7 @@ func (s Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	for i := uint32(0); i < l; i++ {
 		eptr := unsafe.Pointer(uintptr(sptr.array) + uintptr(i)*size)
-		err := s.elem.Decode(eptr, r)
+		err := e.elem.Decode(eptr, r)
 		if err != nil {
 			return err
 		}
@@ -413,18 +460,18 @@ func (s Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewArray returns a new array Encodable
-func NewArray(t reflect.Type, config *Config) Array {
+func NewArray(t reflect.Type, config *Config) *Array {
 	if config != nil {
 		config = config.copy()
 	}
 	return newArray(t, config)
 }
 
-func newArray(t reflect.Type, config *Config) Array {
+func newArray(t reflect.Type, config *Config) *Array {
 	if t.Kind() != reflect.Array {
 		panic(fmt.Errorf("%v: %v is not an array", ErrBadType, t))
 	}
-	return Array{
+	return &Array{
 		elem: newEncodable(t.Elem(), config),
 		len:  uintptr(t.Len()),
 	}
@@ -436,8 +483,12 @@ type Array struct {
 	len  uintptr
 }
 
+func (e *Array) String() string {
+	return fmt.Sprintf("Array[%v]{%v}", e.len, e.elem)
+}
+
 // Size implements Encodable
-func (e Array) Size() int {
+func (e *Array) Size() int {
 	s := e.elem.Size()
 	if s < 0 {
 		return -1 << 31
@@ -446,12 +497,12 @@ func (e Array) Size() int {
 }
 
 // Type implements Encodable
-func (e Array) Type() reflect.Type {
+func (e *Array) Type() reflect.Type {
 	return reflect.ArrayOf(int(e.len), e.elem.Type())
 }
 
 // Encode implements Encodable
-func (e Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -467,7 +518,7 @@ func (e Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implments Encodable
-func (e Array) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Array) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
@@ -537,7 +588,6 @@ type Struct struct {
 
 type structMember struct {
 	Encodable
-	ty     reflect.Type
 	offset uintptr
 }
 
@@ -547,6 +597,21 @@ func (sm structMember) encodeMember(structPtr unsafe.Pointer, w io.Writer) error
 
 func (sm structMember) decodeMember(structPtr unsafe.Pointer, r io.Reader) error {
 	return sm.Decode(unsafe.Pointer(uintptr(structPtr)+sm.offset), r)
+}
+
+func (e *Struct) String() string {
+	str := "Struct(" + e.ty.String() + "){"
+
+	if len(e.members) == 0 {
+		return str + "}"
+	}
+
+	str += e.members[0].String()
+	for i := 1; i < len(e.members); i++ {
+		str += ", " + e.members[i].String()
+	}
+
+	return str + "}"
 }
 
 // Size implements Sized
@@ -566,11 +631,21 @@ func (e Struct) Type() reflect.Type {
 	return e.ty
 }
 
-// Encode implemenets Encodable
+type A struct {
+	Name     string
+	BirthDay time.Time
+	Phone    string
+	Siblings int
+	Spouse   bool
+	Money    float64
+}
+
+// Encode implements Encodable
 func (e Struct) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
+	fmt.Println(ptr)
 	for _, m := range e.members {
 		err := m.encodeMember(ptr, w)
 		if err != nil {
@@ -580,7 +655,7 @@ func (e Struct) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return nil
 }
 
-// Decode implemenets Encodable
+// Decode implements Encodable
 func (e Struct) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer

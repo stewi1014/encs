@@ -1,6 +1,7 @@
 package encs
 
 import (
+	"fmt"
 	"io"
 	"reflect"
 
@@ -17,7 +18,7 @@ func NewEncoder(w io.Writer) *Encoder {
 
 type Encoder struct {
 	w        io.Writer
-	te       enc.Type
+	te       enc.Resolver
 	encoders map[reflect.Type]enc.Encodable
 }
 
@@ -32,6 +33,8 @@ func (e *Encoder) Encode(v interface{}) error {
 		return err
 	}
 
+	fmt.Println(val.Type())
+
 	ec := e.getEncodable(val.Type())
 	return enc.EncodeInterface(v, ec, e.w)
 }
@@ -42,7 +45,7 @@ func (e *Encoder) getEncodable(t reflect.Type) enc.Encodable {
 	}
 
 	config := &enc.Config{
-		TypeEncoder: e.te,
+		Resolver: e.te,
 	}
 
 	ec := enc.NewEncodable(t, config)

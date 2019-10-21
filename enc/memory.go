@@ -2,6 +2,7 @@ package enc
 
 import (
 	"io"
+	"reflect"
 	"unsafe"
 )
 
@@ -15,27 +16,37 @@ func NewMemory(size int) *Memory {
 
 // Memory is an encoder that throws type-safety out the window (as if the rest of this library wasn't enough).
 // Initialised with NewMemory(size), it reads/writes directly to the memory at the given address with no internal buffering.
+// Extreme care must be taken, errors from Memory can be difficult to read, let alone helpful in debugging, and are often in the form of unrecoverable panics.
 type Memory slicePtr
 
-// Size implemenets Sized
-func (m *Memory) Size() int {
-	return m.len
+func (e *Memory) String() string {
+	return "Memory"
+}
+
+// Type implements Encodable
+func (e *Memory) Type() reflect.Type {
+	return invalidType
+}
+
+// Size implemenets Encodable
+func (e *Memory) Size() int {
+	return e.len
 }
 
 // Encode implements Encodable
-func (m *Memory) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Memory) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
-	m.array = ptr
-	return write(*(*[]byte)(unsafe.Pointer(&m)), w)
+	e.array = ptr
+	return write(*(*[]byte)(unsafe.Pointer(&e)), w)
 }
 
 // Decode implements Decodable
-func (m *Memory) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Memory) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
-	m.array = ptr
-	return read(*(*[]byte)(unsafe.Pointer(&m)), r)
+	e.array = ptr
+	return read(*(*[]byte)(unsafe.Pointer(&e)), r)
 }

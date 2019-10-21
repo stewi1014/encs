@@ -42,8 +42,8 @@ func testTypes() []reflect.Type {
 }
 
 func TestRegisterResolver(t *testing.T) {
-	e := enc.NewTypeRegistry(nil)
-	d := enc.NewTypeRegistry(nil)
+	e := enc.NewRegisterResolver(nil)
+	d := enc.NewRegisterResolver(nil)
 
 	for _, ty := range testTypes() {
 		e.Register(ty)
@@ -54,7 +54,7 @@ func TestRegisterResolver(t *testing.T) {
 		buff := new(bytes.Buffer)
 		e.Encode(ty, buff)
 
-		decoded, err := d.Decode(buff)
+		decoded, err := d.Decode(ty, buff)
 		if err != nil {
 			t.Errorf("error decoding: %v", err)
 		}
@@ -72,7 +72,7 @@ func BenchmarkRegisterResolverDecode(b *testing.B) {
 	buff := new(bytes.Buffer)
 
 	// populate buffer
-	e := enc.NewTypeRegistry(nil)
+	e := enc.NewRegisterResolver(nil)
 	for _, tt := range testTypes {
 		e.Register(tt)
 	}
@@ -85,7 +85,7 @@ func BenchmarkRegisterResolverDecode(b *testing.B) {
 	b.ResetTimer()
 	var j int
 	for i := 0; i < b.N; i++ {
-		typeSink, _ = e.Decode(buff)
+		typeSink, _ = e.Decode(nil, buff)
 		j++
 		if j >= encodeNum {
 			j = 0
@@ -96,7 +96,7 @@ func BenchmarkRegisterResolverDecode(b *testing.B) {
 
 func BenchmarkRegisterResolverEncode(b *testing.B) {
 	testTypes := testTypes()
-	e := enc.NewTypeRegistry(nil)
+	e := enc.NewRegisterResolver(nil)
 
 	for _, tt := range testTypes {
 		e.Register(tt)

@@ -20,6 +20,10 @@ type String struct {
 	buff []byte
 }
 
+func (e *String) String() string {
+	return "String"
+}
+
 // Size implemenets Encodable
 func (e *String) Size() int {
 	return -1 << 31
@@ -61,7 +65,7 @@ func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	l |= uint32(e.buff[1]) << 8
 	l |= uint32(e.buff[2]) << 16
 	l |= uint32(e.buff[3]) << 24
-	if l > TooBig {
+	if int(l) > TooBig {
 		return fmt.Errorf("%v; received string length too large", ErrMalformed)
 	}
 
@@ -89,6 +93,10 @@ func NewBool() *Bool {
 // Bool is an Encodable for bools
 type Bool struct {
 	buff []byte
+}
+
+func (e *Bool) String() string {
+	return "Bool"
 }
 
 // Size implements Sized
@@ -181,6 +189,10 @@ func (e *BinaryMarshaler) setIface(ptr unsafe.Pointer) {
 	reflect.ValueOf(&e.i).Elem().Set(reflect.NewAt(e.t, ptr).Elem())
 }
 
+func (e *BinaryMarshaler) String() string {
+	return fmt.Sprintf("BinaryMarshaler(%v)", e.t)
+}
+
 // Type implements Encodable
 func (e *BinaryMarshaler) Type() reflect.Type {
 	return e.t
@@ -230,7 +242,7 @@ func (e *BinaryMarshaler) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	l |= uint32(e.buff[1]) << 8
 	l |= uint32(e.buff[2]) << 16
 	l |= uint32(e.buff[3]) << 24
-	if l > TooBig {
+	if int(l) > TooBig {
 		return fmt.Errorf("%v: reported BinaryMarshaler buffer size is too large", ErrMalformed)
 	}
 

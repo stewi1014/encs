@@ -1,30 +1,31 @@
 package enc
 
 import (
+	"fmt"
 	"io"
 	"reflect"
 	"sync"
 	"unsafe"
 )
 
-// NewConcurrentEncodable returns a new concurrent-safe encodable.
-func NewConcurrentEncodable(t reflect.Type, config *Config) *ConcurrentEncodable {
+// NewConcurrent returns a new concurrent-safe encodable.
+func NewConcurrent(t reflect.Type, config *Config) *Concurrent {
 	if config != nil {
 		config = config.copy()
 	}
-	return newConcurrentEncodable(t, config)
+	return newConcurrent(t, config)
 }
 
 // retain config
-func newConcurrentEncodable(t reflect.Type, config *Config) *ConcurrentEncodable {
-	return &ConcurrentEncodable{
+func newConcurrent(t reflect.Type, config *Config) *Concurrent {
+	return &Concurrent{
 		t: t,
 		c: config,
 	}
 }
 
-// ConcurrentEncodable allows concurrent Encode and Decode operations on an Encodable.
-type ConcurrentEncodable struct {
+// Concurrent allows concurrent Encode and Decode operations on an Encodable.
+type Concurrent struct {
 	t reflect.Type
 	c *Config
 
@@ -33,7 +34,7 @@ type ConcurrentEncodable struct {
 }
 
 // Size implements Sized
-func (e *ConcurrentEncodable) Size() int {
+func (e *Concurrent) Size() int {
 	enc := e.get()
 	defer e.put(enc)
 
@@ -41,25 +42,31 @@ func (e *ConcurrentEncodable) Size() int {
 }
 
 // Type implements Encodable
-func (e *ConcurrentEncodable) Type() reflect.Type {
+func (e *Concurrent) Type() reflect.Type {
 	return e.t
 }
 
+func (e *Concurrent) String() string {
+	enc := e.get()
+	defer e.put(enc)
+	return fmt.Sprintf("Concurrent(%v)", enc.String())
+}
+
 // Encode implements Encodable
-func (e *ConcurrentEncodable) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e *Concurrent) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	enc := e.get()
 	defer e.put(enc)
 	return enc.Encode(ptr, w)
 }
 
 // Decode implements Encodable
-func (e *ConcurrentEncodable) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e *Concurrent) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	enc := e.get()
 	defer e.put(enc)
 	return enc.Decode(ptr, r)
 }
 
-func (e *ConcurrentEncodable) get() Encodable {
+func (e *Concurrent) get() Encodable {
 	e.encodersMutex.Lock()
 	defer e.encodersMutex.Unlock()
 	l := len(e.encoders)
@@ -71,7 +78,7 @@ func (e *ConcurrentEncodable) get() Encodable {
 	return newEncodable(e.t, e.c)
 }
 
-func (e *ConcurrentEncodable) put(enc Encodable) {
+func (e *Concurrent) put(enc Encodable) {
 	e.encodersMutex.Lock()
 	defer e.encodersMutex.Unlock()
 	e.encoders = append(e.encoders, enc)

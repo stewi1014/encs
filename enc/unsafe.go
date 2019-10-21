@@ -11,7 +11,16 @@ func ptrInterface(ptr unsafe.Pointer) *interfacePtr {
 
 type interfacePtr struct {
 	typeInfo unsafe.Pointer
-	ptr      unsafe.Pointer
+	elem     unsafe.Pointer
+}
+
+func (i *interfacePtr) ptr() unsafe.Pointer {
+	iface := *(*interface{})(unsafe.Pointer(i))
+	iv := reflect.ValueOf(iface)
+	if iv.Kind() == reflect.Ptr {
+		return unsafe.Pointer(&i.elem)
+	}
+	return i.elem
 }
 
 func ptrSlice(ptr unsafe.Pointer) *slicePtr {

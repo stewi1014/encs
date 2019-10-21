@@ -1,7 +1,6 @@
 package encs
 
 import (
-	"fmt"
 	"io"
 	"reflect"
 
@@ -32,8 +31,6 @@ func (e *Encoder) Encode(v interface{}) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println(val.Type())
 
 	ec := e.getEncodable(val.Type())
 	return enc.EncodeInterface(v, ec, e.w)

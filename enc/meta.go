@@ -5,7 +5,6 @@ import (
 	"io"
 	"reflect"
 	"sort"
-	"time"
 	"unicode"
 	"unicode/utf8"
 	"unsafe"
@@ -631,21 +630,11 @@ func (e Struct) Type() reflect.Type {
 	return e.ty
 }
 
-type A struct {
-	Name     string
-	BirthDay time.Time
-	Phone    string
-	Siblings int
-	Spouse   bool
-	Money    float64
-}
-
 // Encode implements Encodable
 func (e Struct) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
 		return ErrNilPointer
 	}
-	fmt.Println(ptr)
 	for _, m := range e.members {
 		err := m.encodeMember(ptr, w)
 		if err != nil {

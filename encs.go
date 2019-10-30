@@ -1,18 +1,16 @@
-// Package gneg stands for Gneg does Not Encode Generics; a Type-Strict encoding library.
+// Package encs aims to provide a type-strict, modular and feature-full encoding library with as little overhead as possible.
 //
-// Gneg provides a serilisation method for golang types. It aims to be configurable and portable.
-// Features include:
+// Goals include:
+// Type-safe: The type is encoded along with the value, and decoders will decode only into the same type that was sent, or in the case of interface encoding,
+// fill the interface with the same type as was sent. All types to be received must be Registered with Register()
 //
-// Stream Promiscuity*; encoded streams can be picked up by a decoder mid-stream and decoded sucessfully,
-// allowing a single encoder to write to a dynamic number of receiving clients, and a dynamic number of sending clients to be
-// decoded by a single decoder.
+// Stream-promiscuious: Encoded messages are completely self-contained, and encoded streams can be picked up by a Decoder mid-stream and decoded sucessfully,
+// allowing a static Encoder to write to a dynamic number of receiving clients, and a dynamic number of sending clients to be decoded by a single Decoder.
 //
-// Type-safe; Types are sent with their encoded value (See TypeResolver), allowing decoders to create the sent type locally and decode into it.
-// The type returned by Decode (+pointer) is always the same as the type given to Encode.
+// Modular and Open: Methods for encoding are exposed in sub-packages, allowing their low-level encoding methods to be used to create custom encoding systems for a given use case,
+// without the overhead or added complexity of an Encoder or Decoder. The simple payload structure also allows easy re-implementation of the encs protocol.
 //
-// Notes on Decoding:
-// When decoding into an interface, it must be passed by reference (Decode(&val)) unless PreserveInterface is set, and the interface points to the same type as
-// the type passed to Encode. If PreserveInterface is set, the decoding type must match the Encoded type.
+// encs/encodable provides encoders for specific types, and methods for encoding reflect.Type values.
 //
-// The sub-package gram provides helpful functions for creating and reading messages.
+// encs/encio provides io and error types for encoding and related tasks
 package encs

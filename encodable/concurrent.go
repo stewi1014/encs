@@ -1,4 +1,4 @@
-package enc
+package encodable
 
 import (
 	"fmt"
@@ -8,27 +8,21 @@ import (
 	"unsafe"
 )
 
-// NewConcurrent returns a new concurrent-safe encodable.
-func NewConcurrent(t reflect.Type, config *Config) *Concurrent {
-	if config != nil {
-		config = config.copy()
-	}
-	return newConcurrent(t, config)
-}
-
-// retain config
-func newConcurrent(t reflect.Type, config *Config) *Concurrent {
+// NewConcurrent wraps an Encodable with Concurrent, using new to get new instances of the Encodable.
+func NewConcurrent(new func() Encodable) *Concurrent {
 	return &Concurrent{
-		t: t,
-		c: config,
+		new: new,
 	}
 }
 
-// Concurrent allows concurrent Encode and Decode operations on an Encodable.
+// Concurrent is a thread safe encodable.
+// It functions as a drop in replacement for Encodables, keeping a cache of Encodables, only allowing a single call at a time on any one Encodable.
+// If all cached Encodables are busy in a call, it creates a new Encodable, and calls it; It never blocks.
 type Concurrent struct {
-	t reflect.Type
-	c *Config
+	new func() Encodable
 
+	// Mutex is used to secure encoders. We must be careful never to hold the mutex in a way which might block calls,
+	// that is, it must only be held for the moment when we modify encoders, and released before any other action.
 	encodersMutex sync.Mutex
 	encoders      []Encodable
 }
@@ -43,12 +37,17 @@ func (e *Concurrent) Size() int {
 
 // Type implements Encodable
 func (e *Concurrent) Type() reflect.Type {
-	return e.t
+	enc := e.get()
+	defer e.put(enc)
+
+	return enc.Type()
 }
 
+// String implements Encodable
 func (e *Concurrent) String() string {
 	enc := e.get()
 	defer e.put(enc)
+
 	return fmt.Sprintf("Concurrent(%v)", enc.String())
 }
 
@@ -56,6 +55,7 @@ func (e *Concurrent) String() string {
 func (e *Concurrent) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	enc := e.get()
 	defer e.put(enc)
+
 	return enc.Encode(ptr, w)
 }
 
@@ -63,23 +63,26 @@ func (e *Concurrent) Encode(ptr unsafe.Pointer, w io.Writer) error {
 func (e *Concurrent) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	enc := e.get()
 	defer e.put(enc)
+
 	return enc.Decode(ptr, r)
 }
 
 func (e *Concurrent) get() Encodable {
 	e.encodersMutex.Lock()
-	defer e.encodersMutex.Unlock()
 	l := len(e.encoders)
 	if l > 0 {
 		enc := e.encoders[l-1]
 		e.encoders = e.encoders[:l-1]
+		e.encodersMutex.Unlock()
 		return enc
 	}
-	return newEncodable(e.t, e.c)
+	e.encodersMutex.Unlock()
+	return e.new()
 }
 
+// ownership of enc is passed to put, no more calls can be made.
 func (e *Concurrent) put(enc Encodable) {
 	e.encodersMutex.Lock()
-	defer e.encodersMutex.Unlock()
 	e.encoders = append(e.encoders, enc)
+	e.encodersMutex.Unlock()
 }

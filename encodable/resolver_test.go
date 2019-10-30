@@ -1,4 +1,4 @@
-package enc_test
+package encodable_test
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/stewi1014/encs/enc"
+	"github.com/stewi1014/encs/encodable"
 )
 
 var testValues = []interface{}{
@@ -42,8 +42,8 @@ func testTypes() []reflect.Type {
 }
 
 func TestRegisterResolver(t *testing.T) {
-	e := enc.NewRegisterResolver(nil)
-	d := enc.NewRegisterResolver(nil)
+	e := encodable.NewRegisterResolver(nil)
+	d := encodable.NewRegisterResolver(nil)
 
 	for _, ty := range testTypes() {
 		e.Register(ty)
@@ -72,7 +72,7 @@ func BenchmarkRegisterResolverDecode(b *testing.B) {
 	buff := new(bytes.Buffer)
 
 	// populate buffer
-	e := enc.NewRegisterResolver(nil)
+	e := encodable.NewRegisterResolver(nil)
 	for _, tt := range testTypes {
 		e.Register(tt)
 	}
@@ -96,7 +96,7 @@ func BenchmarkRegisterResolverDecode(b *testing.B) {
 
 func BenchmarkRegisterResolverEncode(b *testing.B) {
 	testTypes := testTypes()
-	e := enc.NewRegisterResolver(nil)
+	e := encodable.NewRegisterResolver(nil)
 
 	for _, tt := range testTypes {
 		e.Register(tt)

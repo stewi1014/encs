@@ -1,4 +1,4 @@
-package enc_test
+package encodable_test
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/stewi1014/encs/enc"
+	"github.com/stewi1014/encs/encodable"
 )
 
 func TestFloat32(t *testing.T) {
@@ -14,7 +14,7 @@ func TestFloat32(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1,
 	}
 
-	enc := enc.NewFloat32()
+	enc := encodable.NewFloat32()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -46,7 +46,7 @@ func TestFloat64(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1,
 	}
 
-	enc := enc.NewFloat64()
+	enc := encodable.NewFloat64()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -78,7 +78,7 @@ func TestComplex64(t *testing.T) {
 		0 + 4i, 112 + 31i, 1<<89 - 1 + 1384603i, 3, 4i,
 	}
 
-	enc := enc.NewComplex64()
+	enc := encodable.NewComplex64()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -110,7 +110,7 @@ func TestComplex128(t *testing.T) {
 		0 + 4i, 112 + 31i, 1<<89 - 1 + 1384603i, 3, 4i,
 	}
 
-	enc := enc.NewComplex128()
+	enc := encodable.NewComplex128()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {

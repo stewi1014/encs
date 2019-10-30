@@ -1,4 +1,4 @@
-package enc_test
+package encodable_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/stewi1014/encs/enc"
+	"github.com/stewi1014/encs/encodable"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 )
 
 func TestUint8(t *testing.T) {
-	e := enc.NewUint8()
+	e := encodable.NewUint8()
 	buff := new(bytes.Buffer)
 	for i := uint8(0); ; i++ {
 		err := e.Encode(unsafe.Pointer(&i), buff)
@@ -53,7 +53,7 @@ func TestUint8(t *testing.T) {
 }
 
 func TestUint16(t *testing.T) {
-	e := enc.NewUint16()
+	e := encodable.NewUint16()
 	buff := new(bytes.Buffer)
 	for i := uint16(0); ; i++ {
 		err := e.Encode(unsafe.Pointer(&i), buff)
@@ -85,7 +85,7 @@ func TestUint32(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1,
 	}
 
-	e := enc.NewUint32()
+	e := encodable.NewUint32()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -117,7 +117,7 @@ func TestUint64(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<64 - 1,
 	}
 
-	e := enc.NewUint64()
+	e := encodable.NewUint64()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -149,7 +149,7 @@ func TestUint(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<bits.UintSize - 1,
 	}
 
-	e := enc.NewUint()
+	e := encodable.NewUint()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -179,7 +179,7 @@ func TestUint(t *testing.T) {
 }
 
 func TestInt8(t *testing.T) {
-	e := enc.NewInt8()
+	e := encodable.NewInt8()
 	buff := new(bytes.Buffer)
 	for i := int8(-1 << 7); ; i++ {
 		err := e.Encode(unsafe.Pointer(&i), buff)
@@ -205,7 +205,7 @@ func TestInt8(t *testing.T) {
 }
 
 func TestInt16(t *testing.T) {
-	e := enc.NewInt16()
+	e := encodable.NewInt16()
 	buff := new(bytes.Buffer)
 	for i := int16(-1 << 15); ; i++ {
 		err := e.Encode(unsafe.Pointer(&i), buff)
@@ -236,7 +236,7 @@ func TestInt32(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, -1 << 31, 1<<31 - 1, -1,
 	}
 
-	e := enc.NewInt32()
+	e := encodable.NewInt32()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -268,7 +268,7 @@ func TestInt64(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<63 - 1, -1, -1 << 63,
 	}
 
-	e := enc.NewInt64()
+	e := encodable.NewInt64()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -300,7 +300,7 @@ func TestInt(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<(bits.UintSize-1) - 1, -1, -1 << 63,
 	}
 
-	e := enc.NewInt()
+	e := encodable.NewInt()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
@@ -334,7 +334,7 @@ func BenchmarkUint64(b *testing.B) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<64 - 1,
 	}
 
-	enc := enc.NewUint64()
+	enc := encodable.NewUint64()
 	buff := new(bytes.Buffer)
 	j := 0
 	var u uint64
@@ -357,7 +357,7 @@ func BenchmarkUint(b *testing.B) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1,
 	}
 
-	enc := enc.NewUint()
+	enc := encodable.NewUint()
 	buff := new(bytes.Buffer)
 	j := 0
 	var u uint
@@ -377,7 +377,7 @@ func BenchmarkInt(b *testing.B) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<(bits.UintSize-1) - 1, -1, -1 << 63,
 	}
 
-	enc := enc.NewInt()
+	enc := encodable.NewInt()
 	buff := new(bytes.Buffer)
 	j := 0
 	var u int
@@ -398,7 +398,7 @@ func TestUintptr(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<64 - 1,
 	}
 
-	enc := enc.NewUintptr()
+	enc := encodable.NewUintptr()
 	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {

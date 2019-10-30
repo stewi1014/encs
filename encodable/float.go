@@ -1,4 +1,4 @@
-package enc
+package encodable
 
 // Float & Complex type encoders
 
@@ -6,6 +6,8 @@ import (
 	"io"
 	"reflect"
 	"unsafe"
+
+	"github.com/stewi1014/encs/encio"
 )
 
 // NewFloat32 returns a new float32 Encodable.
@@ -20,6 +22,7 @@ type Float32 struct {
 	buff []byte
 }
 
+// String implements Encodable
 func (e *Float32) String() string {
 	return "Float32"
 }
@@ -37,7 +40,10 @@ func (e *Float32) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Float32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Float32.Encode",
+		}
 	}
 	bits := *(*uint32)(ptr)
 	e.buff[0] = uint8(bits)
@@ -45,15 +51,18 @@ func (e *Float32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	e.buff[2] = uint8(bits >> 16)
 	e.buff[3] = uint8(bits >> 24)
 
-	return write(e.buff, w)
+	return encio.Write(e.buff, w)
 }
 
 // Decode implements Encodable
 func (e *Float32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Float32.Decode",
+		}
 	}
-	if err := read(e.buff, r); err != nil {
+	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
 	bits := (*uint32)(ptr)
@@ -77,6 +86,7 @@ type Float64 struct {
 	buff []byte
 }
 
+// String implements Encodable
 func (e *Float64) String() string {
 	return "Float64"
 }
@@ -94,7 +104,10 @@ func (e *Float64) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Float64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Float64.Encode",
+		}
 	}
 	bits := *(*uint64)(ptr)
 	e.buff[0] = uint8(bits)
@@ -106,15 +119,18 @@ func (e *Float64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	e.buff[6] = uint8(bits >> 48)
 	e.buff[7] = uint8(bits >> 56)
 
-	return write(e.buff, w)
+	return encio.Write(e.buff, w)
 }
 
 // Decode implements Encodable
 func (e *Float64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Float64.Decode",
+		}
 	}
-	if err := read(e.buff, r); err != nil {
+	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
 	bits := (*uint64)(ptr)
@@ -142,6 +158,7 @@ type Complex64 struct {
 	buff []byte
 }
 
+// String implements Encodable
 func (e *Complex64) String() string {
 	return "Complex64"
 }
@@ -159,7 +176,10 @@ func (e *Complex64) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Complex64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Complex64.Encode",
+		}
 	}
 	bits := *(*uint32)(ptr)
 	e.buff[0] = uint8(bits)
@@ -173,15 +193,18 @@ func (e *Complex64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	e.buff[6] = uint8(bits >> 16)
 	e.buff[7] = uint8(bits >> 24)
 
-	return write(e.buff, w)
+	return encio.Write(e.buff, w)
 }
 
 // Decode implements Encodable
 func (e *Complex64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Complex64.Decode",
+		}
 	}
-	if err := read(e.buff, r); err != nil {
+	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
 	bits := (*uint32)(ptr)
@@ -211,6 +234,7 @@ type Complex128 struct {
 	buff []byte
 }
 
+// String implements Encodable
 func (e *Complex128) String() string {
 	return "Complex128"
 }
@@ -228,7 +252,10 @@ func (e *Complex128) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Complex128) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Complex128.Encode",
+		}
 	}
 	bits := *(*uint64)(ptr)
 	e.buff[0] = uint8(bits)
@@ -250,15 +277,18 @@ func (e *Complex128) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	e.buff[14] = uint8(bits >> 48)
 	e.buff[15] = uint8(bits >> 56)
 
-	return write(e.buff, w)
+	return encio.Write(e.buff, w)
 }
 
 // Decode implements Encodable
 func (e *Complex128) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Complex128.Decode",
+		}
 	}
-	if err := read(e.buff, r); err != nil {
+	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
 	bits := (*uint64)(ptr)

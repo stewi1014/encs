@@ -1,17 +1,17 @@
-package enc_test
+package encodable_test
 
 import (
 	"bytes"
 	"testing"
 	"unsafe"
 
-	"github.com/stewi1014/encs/enc"
+	"github.com/stewi1014/encs/encodable"
 )
 
 func TestMemory(t *testing.T) {
 	var a1, a2 [64]byte
 	buff := new(bytes.Buffer)
-	m := enc.NewMemory(64)
+	m := encodable.NewMemory(64)
 
 	for i := range a1 {
 		a1[i] = byte(i)

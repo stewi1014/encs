@@ -1,4 +1,4 @@
-// Package enc provides low-level methods for seralising golang data structures.
+// Package encodable provides low-level methods for seralising golang data structures.
 // It aims to be fast, modular and comprehensive, valuing runtime speed over creation overhead.
 //
 // Encodable is an encoder/decoder for a specific type.
@@ -16,44 +16,30 @@
 //
 // Type is an encoder/decoder for type information; an encoder for reflect.Type.
 // The primary implementation, RegisterType
-package enc
+package encodable
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"unsafe"
-)
 
-var (
-	// TooBig is a byte count used for simple sanity checking before things like allocation and iteration with numbers decoded from readers.
-	// By default it is 32MB on 32bit machines, and 128MB on 64bit machines.
-	// Feel free to change it.
-	TooBig = 1 << (25 + ((^uint(0) >> 32) & 2))
-)
-
-// Error constants.
-// Errors should be checked with errors.Is() or errors.As().
-// Returned errors can wrap multiple errors; i.e. an unexpected EOF will wrap a ErrMalformed and io.ErrUnexpectedEOF.
-var (
-	// ErrMalformed is returned if the read data is not valid for decoding,
-	// including read errors and short reads.
-	ErrMalformed = errors.New("malformed")
-
-	// ErrBadType is returned when a type, where possible to detect, is wrong, unresolvable or inappropriate.
-	// Due to the usage of unsafe.Pointer, it is not usually possible to detect incorrect types.
-	// If this error is seen, it should be taken seriously; encoding of incorrect types has undefined behaviour.
-	ErrBadType = errors.New("bad type")
-
-	// ErrNilPointer is returned if an encoder or decoder has a nil pointer it can't resolve.
-	ErrNilPointer = errors.New("nil pointer")
+	"github.com/stewi1014/encs/encio"
 )
 
 // Encodable is an Encoder/Decoder for a specific type.
+//
+// Encoders are not assumed to be thread safe.
 // Encode() and Decode() often share static buffers for the sake of performance, but this comes at the cost of thread safety.
 // Concurrent calls to either Encode() or Decode() will almost certainly result in complete failure.
-// Use NewConcurrent if concurrency is needed.
+// Use NewConcurrentEncodable if concurrency is needed.
+//
+// Encodables should return two kinds of error.
+// IOError and Error for io and corrupted data errors, and Error for encoding errors.
+// See error.go
+//
+// The Config passed to the New* functions of encodables is also used to store generated configuration for the specific Encodable,
+// so New* Encodable functions must copy Config.
 type Encodable interface {
 	// Type returns the type that the Encodable encodes.
 	// ptr in Encode() and Decode() *must* be a pointer to an object of this type.
@@ -80,22 +66,17 @@ type Encodable interface {
 	fmt.Stringer // String() string
 }
 
-// NewEncodable returns a new Encodable for encoding the type t.
+// New returns a new Encodable for encoding the type t.
 // config contains settings and information for the generation of the Encodable.
 // In many cases, it can be nil for sane defaults, however some Enodable types require information from the config.
-func NewEncodable(t reflect.Type, config *Config) Encodable {
-	// copy config; changes can be made to it and we want to be able to re-use it without stepping on other Encodables.
-	if config != nil {
-		config = config.copy()
-	}
-	return newEncodable(t, config)
+func New(t reflect.Type, config *Config) Encodable {
+	return newEncodable(t, config.genState())
 }
 
-func newEncodable(t reflect.Type, config *Config) Encodable {
-	if config == nil {
-		config = new(Config)
-	}
-
+// newEncodable creates a new Encodable from state.
+// as a general rule, New* functions are for creating new, independant Encodables,
+// while new* functions are for creating encodables that are children of existing Encodables.
+func newEncodable(t reflect.Type, state *state) Encodable {
 	ptrt := reflect.PtrTo(t)
 	kind := t.Kind()
 	switch {
@@ -105,17 +86,17 @@ func newEncodable(t reflect.Type, config *Config) Encodable {
 
 	// Compound-Types
 	case kind == reflect.Ptr:
-		return newPointer(t, config)
+		return newPointer(t, state)
 	case kind == reflect.Interface:
-		return newInterface(t, config)
+		return newInterface(t, state)
 	case kind == reflect.Struct:
-		return newStruct(t, config)
+		return newStruct(t, state)
 	case kind == reflect.Array:
-		return newArray(t, config)
+		return newArray(t, state)
 	case kind == reflect.Slice:
-		return newSlice(t, config)
+		return newSlice(t, state)
 	case kind == reflect.Map:
-		return newMap(t, config)
+		return newMap(t, state)
 
 	// Integer types
 	case kind == reflect.Uint8:
@@ -158,5 +139,39 @@ func newEncodable(t reflect.Type, config *Config) Encodable {
 		return NewString()
 	}
 
-	panic(fmt.Errorf("%v: cannot find encoder for type %v", ErrBadType, t))
+	panic(encio.Error{
+		Err:     encio.ErrBadType,
+		Message: fmt.Sprintf("cannot create encodable for type %v", t),
+		Caller:  "enc.NewEncodable",
+	})
+}
+
+// NewSource returns a Source with the given config and new function.
+func NewSource(config *Config, new func(reflect.Type, *Config) Encodable) *Source {
+	// we must hold config, so we copy it
+	config = config.copy()
+
+	return &Source{
+		encs:   make(map[reflect.Type]Encodable),
+		config: config,
+		new:    new,
+	}
+}
+
+// Source is a cache of Encodables. Encodables are only creates once, with subsequent calls to GetEncodable returning the previously created encodable.
+type Source struct {
+	encs   map[reflect.Type]Encodable
+	config *Config
+	new    func(reflect.Type, *Config) Encodable
+}
+
+// GetEncodable returns an encodable for the given type, as created by the new function passed to NewSource.
+func (s *Source) GetEncodable(ty reflect.Type) Encodable {
+	if enc, ok := s.encs[ty]; ok {
+		return enc
+	}
+
+	enc := s.new(ty, s.config)
+	s.encs[ty] = enc
+	return enc
 }

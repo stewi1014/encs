@@ -1,11 +1,12 @@
-package enc
+package encodable
 
 import (
-	"fmt"
 	"io"
 	"math"
 	"reflect"
 	"unsafe"
+
+	"github.com/stewi1014/encs/encio"
 )
 
 // Encoders for basic types.
@@ -21,6 +22,7 @@ type Uint8 struct {
 	buff [1]byte
 }
 
+// String implements Encodable
 func (e *Uint8) String() string {
 	return "Uint8"
 }
@@ -38,30 +40,25 @@ func (e *Uint8) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Uint8) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint8.Encode",
+		}
 	}
 	e.buff[0] = *(*uint8)(ptr)
-	n, err := w.Write(e.buff[:])
-	if n != 1 {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", 1, n)
-	}
-	return nil
+	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Uint8) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
-	}
-	n, err := r.Read(e.buff[:])
-	if n != 1 {
-		if err != nil {
-			return err
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint8.Decode",
 		}
-		return fmt.Errorf("bad read: wanted %v, got %v", 1, n)
+	}
+	if err := encio.Read(e.buff[:], r); err != nil {
+		return err
 	}
 
 	*(*uint8)(ptr) = e.buff[0]
@@ -78,6 +75,7 @@ type Uint16 struct {
 	buff [2]byte
 }
 
+// String implements Encodable
 func (e *Uint16) String() string {
 	return "Uint16"
 }
@@ -95,28 +93,26 @@ func (e Uint16) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Uint16) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint16.Encode",
+		}
 	}
 	i := *(*uint16)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
-	n, err := w.Write(e.buff[:])
-	if n != 2 {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", 2, n)
-	}
-	return nil
+	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Uint16) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint16.Decode",
+		}
 	}
-	err := read(e.buff[:], r)
-	if err != nil {
+	if err := encio.Read(e.buff[:], r); err != nil {
 		return err
 	}
 
@@ -136,6 +132,7 @@ type Uint32 struct {
 	buff [4]byte
 }
 
+// String implements Encodable
 func (e *Uint32) String() string {
 	return "Uint32"
 }
@@ -153,29 +150,28 @@ func (e *Uint32) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Uint32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint32.Encode",
+		}
 	}
 	i := *(*uint32)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
 	e.buff[2] = uint8(i >> 16)
 	e.buff[3] = uint8(i >> 24)
-	n, err := w.Write(e.buff[:])
-	if n != 4 {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", 4, n)
-	}
-	return nil
+	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Uint32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint32.Decode",
+		}
 	}
-	err := read(e.buff[:], r)
+	err := encio.Read(e.buff[:], r)
 	if err != nil {
 		return err
 	}
@@ -203,6 +199,7 @@ func (e *Uint64) Size() int {
 	return 8
 }
 
+// String implements Encodable
 func (e *Uint64) String() string {
 	return "Uint64"
 }
@@ -215,7 +212,10 @@ func (e *Uint64) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Uint64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint64.Encode",
+		}
 	}
 	i := *(*uint64)(ptr)
 	e.buff[0] = uint8(i)
@@ -226,22 +226,18 @@ func (e *Uint64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	e.buff[5] = uint8(i >> 40)
 	e.buff[6] = uint8(i >> 48)
 	e.buff[7] = uint8(i >> 56)
-	n, err := w.Write(e.buff[:])
-	if n != 8 {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", 8, n)
-	}
-	return nil
+	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Uint64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint64.Decode",
+		}
 	}
-	err := read(e.buff[:], r)
+	err := encio.Read(e.buff[:], r)
 	if err != nil {
 		return err
 	}
@@ -272,6 +268,7 @@ const (
 	maxSingleUint = 255 - 8
 )
 
+// String implements Encodable
 func (e *Uint) String() string {
 	return "Uint"
 }
@@ -289,7 +286,10 @@ func (e *Uint) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Uint) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint.Encode",
+		}
 	}
 	i := *(*uint)(ptr)
 	size := uint8(1)
@@ -304,15 +304,18 @@ func (e *Uint) Encode(ptr unsafe.Pointer, w io.Writer) error {
 		e.buff[0] = maxSingleUint + size - 1
 	}
 
-	return write(e.buff[:size], w)
+	return encio.Write(e.buff[:size], w)
 }
 
 // Decode implements Encodable
 func (e *Uint) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uint.Decode",
+		}
 	}
-	if err := read(e.buff[:1], r); err != nil {
+	if err := encio.Read(e.buff[:1], r); err != nil {
 		return err
 	}
 
@@ -320,7 +323,7 @@ func (e *Uint) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	if e.buff[0] > maxSingleUint {
 		size := e.buff[0] - maxSingleUint
-		if err := read(e.buff[:size], r); err != nil {
+		if err := encio.Read(e.buff[:size], r); err != nil {
 			return err
 		}
 
@@ -340,13 +343,14 @@ func NewInt8() *Int8 {
 	return &Int8{}
 }
 
-func (e *Int8) String() string {
-	return "Int8"
-}
-
 // Int8 is an Encodable for int8s
 type Int8 struct {
 	buff [1]byte
+}
+
+// String implements Encodable
+func (e *Int8) String() string {
+	return "Int8"
 }
 
 // Size implements Encodable
@@ -362,30 +366,25 @@ func (e *Int8) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Int8) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int8.Encode",
+		}
 	}
 	e.buff[0] = *(*uint8)(ptr)
-	n, err := w.Write(e.buff[:])
-	if n != 1 {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", 1, n)
-	}
-	return nil
+	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Int8) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
-	}
-	n, err := r.Read(e.buff[:])
-	if n != 1 {
-		if err != nil {
-			return err
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int8.Decode",
 		}
-		return fmt.Errorf("bad read: wanted %v, got %v", 1, n)
+	}
+	if err := encio.Read(e.buff[:], r); err != nil {
+		return err
 	}
 	*(*int8)(ptr) = int8(e.buff[0])
 	return nil
@@ -401,6 +400,7 @@ type Int16 struct {
 	buff [2]byte
 }
 
+// String implements Encodable
 func (e *Int16) String() string {
 	return "Int16"
 }
@@ -418,33 +418,28 @@ func (e *Int16) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Int16) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int16.Encode",
+		}
 	}
 	i := *(*int16)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
 
-	n, err := w.Write(e.buff[:])
-	if n != 2 {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", 2, n)
-	}
-	return nil
+	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Int16) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
-	}
-	n, err := r.Read(e.buff[:])
-	if n != 2 {
-		if err != nil {
-			return err
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int16.Decode",
 		}
-		return fmt.Errorf("bad read: wanted %v, got %v", 2, n)
+	}
+	if err := encio.Read(e.buff[:], r); err != nil {
+		return err
 	}
 	i := (*int16)(ptr)
 	*i = int16(e.buff[0])
@@ -462,6 +457,7 @@ type Int32 struct {
 	buff [4]byte
 }
 
+// String implements Encodable
 func (e *Int32) String() string {
 	return "Int32"
 }
@@ -479,7 +475,10 @@ func (e *Int32) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Int32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int32.Encode",
+		}
 	}
 	i := *(*int32)(ptr)
 	e.buff[0] = uint8(i)
@@ -487,27 +486,19 @@ func (e *Int32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	e.buff[2] = uint8(i >> 16)
 	e.buff[3] = uint8(i >> 24)
 
-	n, err := w.Write(e.buff[:])
-	if n != 4 {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", 4, n)
-	}
-	return nil
+	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Int32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
-	}
-	n, err := r.Read(e.buff[:])
-	if n != 4 {
-		if err != nil {
-			return err
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int32.Decode",
 		}
-		return fmt.Errorf("bad read: wanted %v, got %v", 4, n)
+	}
+	if err := encio.Read(e.buff[:], r); err != nil {
+		return err
 	}
 
 	i := (*int32)(ptr)
@@ -528,6 +519,7 @@ type Int64 struct {
 	buff [8]byte
 }
 
+// String implements Encodable
 func (e *Int64) String() string {
 	return "Int64"
 }
@@ -545,7 +537,10 @@ func (e *Int64) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Int64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int64.Encode",
+		}
 	}
 	i := *(*int64)(ptr)
 	e.buff[0] = uint8(i)
@@ -557,27 +552,19 @@ func (e *Int64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	e.buff[6] = uint8(i >> 48)
 	e.buff[7] = uint8(i >> 56)
 
-	n, err := w.Write(e.buff[:])
-	if n != 8 {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", 8, n)
-	}
-	return nil
+	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Int64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
-	}
-	n, err := r.Read(e.buff[:])
-	if n != 8 {
-		if err != nil {
-			return err
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int64.Decode",
 		}
-		return fmt.Errorf("bad read: wanted %v, got %v", 8, n)
+	}
+	if err := encio.Read(e.buff[:], r); err != nil {
+		return err
 	}
 
 	i := (*int64)(ptr)
@@ -604,6 +591,7 @@ type Int struct {
 
 const minSingleInt = int8(-1<<7 + 9)
 
+// String implements Encodable
 func (e *Int) String() string {
 	return "Int"
 }
@@ -621,7 +609,10 @@ func (e *Int) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Int) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int.Encode",
+		}
 	}
 	i := *(*int)(ptr)
 	size := 1
@@ -642,20 +633,20 @@ func (e *Int) Encode(ptr unsafe.Pointer, w io.Writer) error {
 		e.buff[0] = uint8((-1 << 7) + size - 1)
 	}
 
-	return write(e.buff[:size], w)
+	return encio.Write(e.buff[:size], w)
 }
 
 // Decode implements Encodable
 func (e *Int) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
-	}
-	n, err := r.Read(e.buff[:1])
-	if n != 1 {
-		if err != nil {
-			return err
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Int.Decode",
 		}
-		return fmt.Errorf("bad read: wanted %v, got %v", 1, n)
+	}
+
+	if err := encio.Read(e.buff[:1], r); err != nil {
+		return err
 	}
 
 	b := int8(e.buff[0])
@@ -665,8 +656,7 @@ func (e *Int) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	size := int(b - (-1 << 7))
-	err = read(e.buff[:size], r)
-	if err != nil {
+	if err := encio.Read(e.buff[:size], r); err != nil {
 		return err
 	}
 
@@ -689,6 +679,7 @@ type Uintptr struct {
 	buff [9]byte
 }
 
+// String implements Encodable
 func (e *Uintptr) String() string {
 	return "Uintptr"
 }
@@ -706,50 +697,44 @@ func (e *Uintptr) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Uintptr) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uintptr.Encode",
+		}
 	}
 	i := *(*uintptr)(ptr)
-	write := uint8(1)
+	l := uint8(1)
 	if i <= maxSingleUint {
 		e.buff[0] = uint8(i)
 	} else {
 		for i > 0 {
-			e.buff[write] = uint8(i)
+			e.buff[l] = uint8(i)
 			i >>= 8
-			write++
+			l++
 		}
-		e.buff[0] = maxSingleUint + write - 1
+		e.buff[0] = maxSingleUint + l - 1
 	}
 
-	n, err := w.Write(e.buff[:write])
-	if n != int(write) {
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("bad write; wanted %v, wrote %v", write, n)
-	}
-	return nil
+	return encio.Write(e.buff[:l], w)
 }
 
 // Decode implements Encodable
 func (e *Uintptr) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
-	}
-	n, err := r.Read(e.buff[:1])
-	if n != 1 {
-		if err != nil {
-			return err
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Uintptr.Decode",
 		}
-		return fmt.Errorf("bad read; wanted %v, got %v", 1, n)
+	}
+	if err := encio.Read(e.buff[:1], r); err != nil {
+		return err
 	}
 
 	i := (*uintptr)(ptr)
 
 	if e.buff[0] > maxSingleUint {
 		size := e.buff[0] - maxSingleUint
-		err = read(e.buff[:size], r)
-		if err != nil {
+		if err := encio.Read(e.buff[:size], r); err != nil {
 			return err
 		}
 

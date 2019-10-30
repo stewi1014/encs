@@ -1,4 +1,4 @@
-package enc
+package encodable
 
 import (
 	"encoding"
@@ -6,6 +6,8 @@ import (
 	"io"
 	"reflect"
 	"unsafe"
+
+	"github.com/stewi1014/encs/encio"
 )
 
 // NewString returns a new string Encodable
@@ -20,6 +22,7 @@ type String struct {
 	buff []byte
 }
 
+// String implements Encodable
 func (e *String) String() string {
 	return "String"
 }
@@ -37,7 +40,10 @@ func (e *String) Type() reflect.Type {
 // Encode implemenets Encodable
 func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.String.Encode",
+		}
 	}
 	strPtr := ptrString(ptr)
 	l := uint32(strPtr.len)
@@ -45,19 +51,22 @@ func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	e.buff[1] = uint8(l >> 8)
 	e.buff[2] = uint8(l >> 16)
 	e.buff[3] = uint8(l >> 24)
-	if err := write(e.buff, w); err != nil {
+	if err := encio.Write(e.buff, w); err != nil {
 		return err
 	}
 
-	return write(strPtr.byteSlice(), w)
+	return encio.Write(strPtr.byteSlice(), w)
 }
 
 // Decode implemenets Encodable
 func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.String.Decode",
+		}
 	}
-	if err := read(e.buff, r); err != nil {
+	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
 
@@ -65,18 +74,22 @@ func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	l |= uint32(e.buff[1]) << 8
 	l |= uint32(e.buff[2]) << 16
 	l |= uint32(e.buff[3]) << 24
-	if int(l) > TooBig {
-		return fmt.Errorf("%v; received string length too large", ErrMalformed)
+	if int(l) > encio.TooBig {
+		return encio.IOError{
+			Err:     encio.ErrMalformed,
+			Message: fmt.Sprintf("string with length %v is too big", l),
+		}
 	}
 
 	// I would like to re-use the existing string, but doing so sometimes panics upon writing to the old string.
 	// This is probably for the best.
+	// TODO; revisit this after testing, the issue may not have been caused here.
 	buff := make([]byte, l)
-	if err := read(buff, r); err != nil {
+	if err := encio.Read(buff, r); err != nil {
 		return err
 	}
 
-	// slices and string share the same format up until the end of the string type.
+	// slices and strings share the same format up until the end of the string type.
 	// so we can just do this, buff isn't going to be used again.
 	*(*stringPtr)(ptr) = *(*stringPtr)(unsafe.Pointer(&buff))
 
@@ -84,7 +97,7 @@ func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewBool returns a new bool Encodable
-func NewBool() *Bool {
+func NewBool() Encodable {
 	return &Bool{
 		buff: make([]byte, 1),
 	}
@@ -95,11 +108,12 @@ type Bool struct {
 	buff []byte
 }
 
+// String implements Encodable
 func (e *Bool) String() string {
 	return "Bool"
 }
 
-// Size implements Sized
+// Size implements Encodable
 func (e *Bool) Size() int {
 	return 1
 }
@@ -112,18 +126,24 @@ func (e *Bool) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Bool) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Bool.Encode",
+		}
 	}
 	e.buff[0] = *(*byte)(ptr)
-	return write(e.buff, w)
+	return encio.Write(e.buff, w)
 }
 
 // Decode implements Encodable
 func (e *Bool) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.Bool.Decode",
+		}
 	}
-	if err := read(e.buff, r); err != nil {
+	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
 	*(*byte)(ptr) = e.buff[0]
@@ -164,6 +184,7 @@ type BinaryMarshaler struct {
 	i               binaryMarshaler
 	createReference bool
 	buff            [4]byte
+	mbuff           []byte
 }
 
 type binaryMarshaler interface {
@@ -173,22 +194,31 @@ type binaryMarshaler interface {
 
 func implementsBinaryMarshaler(t reflect.Type) error {
 	if !t.Implements(binaryMarshalerIface) {
-		return fmt.Errorf("%v does not implement encoding.BinaryMarshaler", t)
+		return encio.Error{
+			Err:     encio.ErrBadType,
+			Caller:  "enc.NewBinaryMarshaler",
+			Message: fmt.Sprintf("%v does not implement encoding.BinaryMarshaler", t),
+		}
 	}
 	if !t.Implements(binaryUnmarshalerIface) {
-		return fmt.Errorf("%v does not implement encoding.BinaryUnarshaler", t)
+		return encio.Error{
+			Err:     encio.ErrBadType,
+			Caller:  "enc.NewBinaryMarshaler",
+			Message: fmt.Sprintf("%v does not implement encoding.BinaryUnmarshaler", t),
+		}
 	}
 	return nil
 }
 
 func (e *BinaryMarshaler) setIface(ptr unsafe.Pointer) {
 	if e.createReference {
-		reflect.ValueOf(&e.i).Elem().Set(reflect.NewAt(e.t, ptr))
+		e.i = reflect.NewAt(e.t, ptr).Interface().(binaryMarshaler)
 		return
 	}
-	reflect.ValueOf(&e.i).Elem().Set(reflect.NewAt(e.t, ptr).Elem())
+	e.i = reflect.NewAt(e.t, ptr).Elem().Interface().(binaryMarshaler)
 }
 
+// String implements Encodable
 func (e *BinaryMarshaler) String() string {
 	return fmt.Sprintf("BinaryMarshaler(%v)", e.t)
 }
@@ -206,35 +236,42 @@ func (e *BinaryMarshaler) Size() int {
 // Encode implements Encodable
 func (e *BinaryMarshaler) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.BinaryMarshaler.Encode",
+		}
 	}
 
 	e.setIface(ptr)
 
-	buff, err := e.i.MarshalBinary()
+	var err error
+	e.mbuff, err = e.i.MarshalBinary()
 	if err != nil {
 		return err
 	}
 
-	l := uint32(len(buff))
+	l := uint32(len(e.mbuff))
 	e.buff[0] = uint8(l)
 	e.buff[1] = uint8(l >> 8)
 	e.buff[2] = uint8(l >> 16)
 	e.buff[3] = uint8(l >> 24)
-	if err := write(e.buff[:], w); err != nil {
+	if err := encio.Write(e.buff[:], w); err != nil {
 		return err
 	}
 
-	return write(buff, w)
+	return encio.Write(e.mbuff, w)
 }
 
 // Decode implements Encodable
 func (e *BinaryMarshaler) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.Error{
+			Err:    encio.ErrNilPointer,
+			Caller: "enc.BinaryMarshaler.Decode",
+		}
 	}
 
-	if err := read(e.buff[:], r); err != nil {
+	if err := encio.Read(e.buff[:], r); err != nil {
 		return err
 	}
 
@@ -242,16 +279,22 @@ func (e *BinaryMarshaler) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	l |= uint32(e.buff[1]) << 8
 	l |= uint32(e.buff[2]) << 16
 	l |= uint32(e.buff[3]) << 24
-	if int(l) > TooBig {
-		return fmt.Errorf("%v: reported BinaryMarshaler buffer size is too large", ErrMalformed)
+	if int(l) > encio.TooBig {
+		return encio.IOError{
+			Err:     encio.ErrMalformed,
+			Message: fmt.Sprintf("buffer with length %v is too big", l),
+		}
 	}
 
-	buff := make([]byte, l)
-	if err := read(buff, r); err != nil {
+	if cap(e.mbuff) < int(l) {
+		e.mbuff = make([]byte, l)
+	}
+	e.mbuff = e.mbuff[:l]
+	if err := encio.Read(e.mbuff, r); err != nil {
 		return err
 	}
 
 	e.setIface(ptr)
 
-	return e.i.UnmarshalBinary(buff)
+	return e.i.UnmarshalBinary(e.mbuff)
 }

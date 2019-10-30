@@ -6,8 +6,78 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/stewi1014/encs/enc"
+	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
+
+func NewDecoder(r io.Reader, config *Config) *Decoder {
+	config = config.copyAndFill()
+	return &Decoder{
+		r:        r,
+		resolver: config.Resolver,
+		source: encodable.NewSource(&encodable.Config{
+			Resolver: config.Resolver,
+		}, encodable.New),
+	}
+}
+
+type Decoder struct {
+	r        io.Reader
+	resolver encodable.Resolver
+	source   *encodable.Source
+}
+
+func (d *Decoder) Decode(v interface{}) error {
+	if v == nil {
+		return encio.Error{
+			Err:     encio.ErrNilPointer,
+			Caller:  "enc.Decoder.Decode",
+			Message: "cannot decode into nil",
+		}
+	}
+
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Ptr {
+		return encio.Error{
+			Err:     encio.ErrBadType,
+			Caller:  "enc.Decoder.Decode",
+			Message: fmt.Sprintf("decoded values must be passed by reference, got %v", val.Type()),
+		}
+	}
+	if val.IsNil() {
+		return encio.Error{
+			Err:     encio.ErrNilPointer,
+			Caller:  "enc.Decode.Decode",
+			Message: "cannot decode into nil pointer",
+		}
+	}
+
+	val = val.Elem()
+	if !val.CanSet() {
+		return encio.Error{
+			Err:     encio.ErrBadType,
+			Caller:  "enc.Decode.Decode",
+			Message: fmt.Sprintf("cannot set value of %v", val.Type()),
+		}
+	}
+
+	ty, err := d.resolver.Decode(val.Type(), d.r)
+	if err != nil {
+		return err
+	}
+
+	if ty != val.Type() {
+		return encio.Error{
+			Err:     encio.ErrBadType,
+			Caller:  "enc.Decode.Decode",
+			Message: fmt.Sprintf("cannot decode %v into %v", ty, val.Type()),
+		}
+	}
+
+	return d.source.GetEncodable(ty).Decode(unsafe.Pointer(val.UnsafeAddr()), d.r)
+}
+
+/*
 
 // NewDecoder returns a new Decoder.
 func NewDecoder(r io.Reader) *Decoder {
@@ -39,6 +109,7 @@ func (d *Decoder) Decode(v interface{}) error {
 	if val.IsNil() {
 		return enc.ErrNilPointer
 	}
+
 	val = val.Elem()
 	if !val.CanSet() {
 		return fmt.Errorf("%v: cannot set value of %v", enc.ErrBadType, val)
@@ -79,7 +150,7 @@ func (d *Decoder) DecodeInterface(i *interface{}) error {
 	}
 
 	ec := d.getEncodable(ty)
-	return enc.DecodeInterface(i, ec, d.r)
+	return enc.Decode(ec, i, d.r)
 }
 
 func (d *Decoder) getEncodable(t reflect.Type) enc.Encodable {
@@ -94,4 +165,4 @@ func (d *Decoder) getEncodable(t reflect.Type) enc.Encodable {
 	e := enc.NewEncodable(t, config)
 	d.decoders[t] = e
 	return e
-}
+}*/

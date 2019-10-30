@@ -1,22 +1,23 @@
-package enc
+package encodable
 
 import (
 	"reflect"
 	"unsafe"
 )
 
+// ptr must be pointer to interface{}; not other interface types.
 func ptrInterface(ptr unsafe.Pointer) *interfacePtr {
 	return (*interfacePtr)(ptr)
 }
 
 type interfacePtr struct {
 	typeInfo unsafe.Pointer
-	elem     unsafe.Pointer
+	elem     unsafe.Pointer // elem is not always what it seems. take care.
 }
 
+// for read only
 func (i *interfacePtr) ptr() unsafe.Pointer {
-	iface := *(*interface{})(unsafe.Pointer(i))
-	iv := reflect.ValueOf(iface)
+	iv := reflect.NewAt(interfaceType, unsafe.Pointer(i)).Elem()
 	if iv.Kind() == reflect.Ptr {
 		return unsafe.Pointer(&i.elem)
 	}

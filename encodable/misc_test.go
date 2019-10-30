@@ -1,11 +1,11 @@
-package enc_test
+package encodable_test
 
 import (
 	"bytes"
 	"testing"
 	"unsafe"
 
-	"github.com/stewi1014/encs/enc"
+	"github.com/stewi1014/encs/encodable"
 )
 
 var stringSink string
@@ -65,8 +65,8 @@ These two examples demonstrate the simplicity with which Go can express complex 
 }
 
 func TestString(t *testing.T) {
-	e := enc.NewString()
-	d := enc.NewString()
+	e := encodable.NewString()
+	d := encodable.NewString()
 	buff := new(bytes.Buffer)
 
 	for _, str := range testStrings {
@@ -88,8 +88,8 @@ func TestString(t *testing.T) {
 }
 
 func TestBool(t *testing.T) {
-	e := enc.NewBool()
-	d := enc.NewBool()
+	e := encodable.NewBool()
+	d := encodable.NewBool()
 	buff := new(bytes.Buffer)
 
 	var b, u bool
@@ -135,7 +135,7 @@ func TestBool(t *testing.T) {
 
 func BenchmarkString(b *testing.B) {
 	str := "Hello World!"
-	e := enc.NewString()
+	e := encodable.NewString()
 	buff := new(bytes.Buffer)
 
 	var j int

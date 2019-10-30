@@ -1,10 +1,12 @@
-package enc
+package encodable
 
 import (
 	"fmt"
 	"io"
 	"reflect"
 	"unsafe"
+
+	"github.com/stewi1014/encs/encio"
 )
 
 // referencer resolves recursive types and values, and stops re-encoding of pointers to the same value.
@@ -22,12 +24,10 @@ type referencer struct {
 	// index is a unique id for an encoded reference type. indexes are not static, and are resolved on every decode and encode.
 	// for encoding, this is used to ensure the type at a given pointer is only encoded once, with subsequent encodes only writing a link (index) to the previously encoded value to the buffer.
 	// for decoding, this is used to keep track of decoded types, and to resolve links (index) to previously decoded values when they are read from the buffer.
-	referenceByIndex map[uint]unsafe.Pointer
-	indexByReference map[unsafe.Pointer]uint
-	index            uint
+	references []unsafe.Pointer
 
-	// uintEnc is used for encoding the index.
-	uintEnc Uint
+	// intEnc is used for encoding the index.
+	intEnc Int
 }
 
 const (
@@ -40,12 +40,14 @@ const (
 // that is, a recursive-safe Encodable. Recursive types *must* use this instead of NewEncodable when resolving
 // their element types, else they loop to infinity.
 // also, they must be concurrent safe on the off chance that a type embeds itself, and calls itself from inside Encode and Decode.
-func (ref *referencer) newEncodable(t reflect.Type, c *Config) Encodable {
+func (ref *referencer) newEncodable(t reflect.Type, state *state) Encodable {
 	if enc, ok := ref.encoders[t]; ok {
 		return enc
 	}
 
-	enc := newConcurrent(t, c)
+	enc := NewConcurrent(func() Encodable {
+		return newEncodable(t, state)
+	})
 	ref.encoders[t] = enc
 	return enc
 }
@@ -56,21 +58,21 @@ func (ref *referencer) newEncodable(t reflect.Type, c *Config) Encodable {
 func (ref *referencer) encodeReference(ptr unsafe.Pointer, elem Encodable, w io.Writer) error {
 	if ptr == nil {
 		ref.buff[0] = refNil
-		return write(ref.buff[:], w)
+		return encio.Write(ref.buff[:], w)
 	}
 
-	if index, seen := ref.indexByReference[ptr]; seen {
+	if index, seen := ref.findPtr(ptr); seen {
 		ref.buff[0] = refReference
-		if err := write(ref.buff[:], w); err != nil {
+		if err := encio.Write(ref.buff[:], w); err != nil {
 			return err
 		}
-		return ref.uintEnc.Encode(unsafe.Pointer(&index), w)
+		return ref.intEnc.Encode(unsafe.Pointer(&index), w)
 	}
 
-	ref.index++
-	ref.indexByReference[ptr] = ref.index
+	ref.append(ptr)
+
 	ref.buff[0] = refEncoded
-	if err := write(ref.buff[:], w); err != nil {
+	if err := encio.Write(ref.buff[:], w); err != nil {
 		return err
 	}
 
@@ -80,10 +82,10 @@ func (ref *referencer) encodeReference(ptr unsafe.Pointer, elem Encodable, w io.
 // decodeReference does the opposite of encodeReference, pointing ptr to the decoded object.
 func (ref *referencer) decodeReference(ptr *unsafe.Pointer, elem Encodable, r io.Reader) error {
 	if ptr == nil {
-		return ErrNilPointer
+		return encio.ErrNilPointer
 	}
 
-	if err := read(ref.buff[:], r); err != nil {
+	if err := encio.Read(ref.buff[:], r); err != nil {
 		return err
 	}
 
@@ -92,22 +94,28 @@ func (ref *referencer) decodeReference(ptr *unsafe.Pointer, elem Encodable, r io
 		*ptr = nil
 		return nil
 	case refReference:
-		var index uint
-		err := ref.uintEnc.Decode(unsafe.Pointer(&index), r)
+		var index int
+		err := ref.intEnc.Decode(unsafe.Pointer(&index), r)
 		if err != nil {
 			return err
 		}
-		var ok bool
-		*ptr, ok = ref.referenceByIndex[index]
-		if !ok {
-			return fmt.Errorf("%v: unknown reference index, bad metadata", ErrMalformed)
+		if index >= len(ref.references) {
+			return encio.IOError{
+				Err:     encio.ErrMalformed,
+				Message: fmt.Sprintf("object is stored by reference, but the referenced location doesnt exist"),
+			}
 		}
+
+		*ptr = ref.references[index]
 		return nil
 	case refEncoded:
 		break
 
 	default:
-		return fmt.Errorf("%v: unknown reference descriptor, bad metadata", ErrMalformed)
+		return encio.IOError{
+			Err:     encio.ErrMalformed,
+			Message: fmt.Sprintf("reference type byte is not nil, reference or encoded"),
+		}
 	}
 
 	// we must decode the type, and store a pointer to it
@@ -115,11 +123,35 @@ func (ref *referencer) decodeReference(ptr *unsafe.Pointer, elem Encodable, r io
 		newAt(ptr, elem.Type())
 	}
 
-	ref.index++
-	ref.referenceByIndex[ref.index] = *ptr
-
+	ref.append(*ptr) // Must be before elem.Decode in case it calls us during its decode.
 	return elem.Decode(*ptr, r)
+}
 
+func (ref *referencer) findPtr(ptr unsafe.Pointer) (index int, ok bool) {
+	for i, p := range ref.references {
+		if p == ptr {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func (ref *referencer) append(ptr unsafe.Pointer) {
+	l := len(ref.references)
+	c := cap(ref.references)
+	if l < c {
+		ref.references = ref.references[:l+1]
+		ref.references[l] = ptr
+		return
+	}
+	if c == 0 {
+		c = 8
+	}
+	nb := make([]unsafe.Pointer, c*2)
+	copy(ref.references, nb)
+	ref.references = nb[:l+1]
+	ref.references[l] = ptr
+	return
 }
 
 // referencer must know when each encode and decode ends. less we make all reference or compund type Encodables reset us every encode/decode,
@@ -140,13 +172,11 @@ func (ref *referencer) Type() reflect.Type {
 }
 
 func (ref *referencer) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	ref.indexByReference = make(map[unsafe.Pointer]uint)
-	ref.index = 0
+	ref.references = ref.references[:0]
 	return ref.enc.Encode(ptr, w)
 }
 
 func (ref *referencer) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	ref.referenceByIndex = make(map[uint]unsafe.Pointer)
-	ref.index = 0
+	ref.references = ref.references[:0]
 	return ref.enc.Decode(ptr, r)
 }

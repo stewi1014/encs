@@ -1,3 +1,4 @@
+// package gram is broken and superseeded, but is useful for reference.
 package gram
 
 import (

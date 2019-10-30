@@ -1,4 +1,4 @@
-# encs
+# Encs
 A type-safe and modular encoding library  
 [![GoDoc](https://godoc.org/github.com/stewi1014/encs?status.svg)](https://godoc.org/github.com/stewi1014/encs)
 

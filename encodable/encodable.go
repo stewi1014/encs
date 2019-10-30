@@ -32,14 +32,11 @@ import (
 // Encoders are not assumed to be thread safe.
 // Encode() and Decode() often share static buffers for the sake of performance, but this comes at the cost of thread safety.
 // Concurrent calls to either Encode() or Decode() will almost certainly result in complete failure.
-// Use NewConcurrentEncodable if concurrency is needed.
+// Use NewConcurrent if concurrency is needed.
 //
 // Encodables should return two kinds of error.
-// IOError and Error for io and corrupted data errors, and Error for encoding errors.
-// See error.go
-//
-// The Config passed to the New* functions of encodables is also used to store generated configuration for the specific Encodable,
-// so New* Encodable functions must copy Config.
+// encio.IOError and encio.Error for io and corrupted data errors, and Error for encoding errors.
+// See encs/encio
 type Encodable interface {
 	// Type returns the type that the Encodable encodes.
 	// ptr in Encode() and Decode() *must* be a pointer to an object of this type.
@@ -158,7 +155,7 @@ func NewSource(config *Config, new func(reflect.Type, *Config) Encodable) *Sourc
 	}
 }
 
-// Source is a cache of Encodables. Encodables are only creates once, with subsequent calls to GetEncodable returning the previously created encodable.
+// Source is a cache of Encodables. Encodables are only created once, with subsequent calls to GetEncodable returning the previously created encodable.
 type Source struct {
 	encs   map[reflect.Type]Encodable
 	config *Config

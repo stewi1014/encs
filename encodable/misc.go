@@ -153,7 +153,7 @@ func (e *Bool) Decode(ptr unsafe.Pointer, r io.Reader) error {
 // NewBinaryMarshaler returns a new BinaryMarshaler Encodable.
 // It can internally handle a reference;
 // i.e. time.Time's unmarshal function requires a reference, but both
-// time.Time and *time.Time will function here, as long at ptr is *time.Time or **time.Time respectively.
+// A type of time.Time and *time.Time will function here, as long as ptr in Encode() and Decode() is *time.Time or **time.Time respectively.
 func NewBinaryMarshaler(t reflect.Type) *BinaryMarshaler {
 	e := &BinaryMarshaler{
 		t: t,

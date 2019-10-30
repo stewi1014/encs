@@ -20,41 +20,41 @@ encs/encio provides io and error types for encoding and related tasks
 
 Example:
 ```go
-	buff := new(bytes.Buffer)
+buff := new(bytes.Buffer)
 
-	// This would typically go in an init() function.
-	encs.Register(ExampleStruct{})
+// This would typically go in an init() function.
+encs.Register(ExampleStruct{})
 
-	birthday, _ := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
+birthday, _ := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
 
-	example := ExampleStruct{
-		Name: "John Doe",
-		Likes: []string{
-			"Computers",
-			"Music",
-		},
-		Birthday: birthday,
-	}
+example := ExampleStruct{
+	Name: "John Doe",
+	Likes: []string{
+		"Computers",
+		"Music",
+	},
+	Birthday: birthday,
+}
 
-	enc := encs.NewEncoder(buff, nil)
+enc := encs.NewEncoder(buff, nil)
 
-	err := enc.Encode(&example)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+err := enc.Encode(&example)
+if err != nil {
+	fmt.Println(err)
+	return
+}
 
-	dec := encs.NewDecoder(buff, nil)
+dec := encs.NewDecoder(buff, nil)
 
-	var decodedExample ExampleStruct
-	err = dec.Decode(&decodedExample)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+var decodedExample ExampleStruct
+err = dec.Decode(&decodedExample)
+if err != nil {
+	fmt.Println(err)
+	return
+}
 
-	fmt.Printf("Name: %v, Likes: %v, Birthday: %v", decodedExample.Name, decodedExample.Likes, decodedExample.Birthday)
+fmt.Printf("Name: %v, Likes: %v, Birthday: %v", decodedExample.Name, decodedExample.Likes, decodedExample.Birthday)
 
-	// Output:
-    // Name: John Doe, Likes: [Computers Music], Birthday: 2006-01-02 15:04:05 +0000 UTC
+// Output:
+// Name: John Doe, Likes: [Computers Music], Birthday: 2006-01-02 15:04:05 +0000 UTC
 ```

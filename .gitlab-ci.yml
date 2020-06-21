@@ -1,0 +1,6 @@
+test:
+  image: golang
+  script: 
+    - "go test"
+    - "go test ./encio"
+    - "go test ./encodable"

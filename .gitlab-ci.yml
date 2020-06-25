@@ -1,6 +1,5 @@
 test:
   image: golang
   script: 
-    - "go test"
-    - "go test ./encio"
-    - "go test ./encodable"
+    - "go test ./... -coverprofile cover.out -race"
+    - "go tool cover -func cover.out"

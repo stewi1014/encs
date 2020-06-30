@@ -18,7 +18,7 @@ var (
 )
 
 // Read reads from r, filling buff and handling errors of io.Reader with little overhead in almost all cases.
-// In an ideaĺ read, only a single int equality check is performed. If the read reports the whole buffer is written, returned errors are ignored.
+// In an ideaĺ read, only a single int equality check is performed. If the read reports the whole buffer is read, returned errors are ignored.
 func Read(buff []byte, r io.Reader) error {
 	n, err := r.Read(buff)
 	if n == len(buff) {
@@ -34,36 +34,44 @@ func Read(buff []byte, r io.Reader) error {
 	if end != len(buff) {
 		switch {
 		case end > len(buff):
-			return IOError{
-				Err:     errors.New("bad io.Reader implementation"),
-				Message: fmt.Sprintf("Read() reported %v bytes read, but buffer is only %v bytes", end, len(buff)),
-			}
+			return NewIOError(
+				errors.New("oversized read"),
+				r,
+				fmt.Sprintf("reported %v bytes read, but buffer is only %v bytes", end, len(buff)),
+				0,
+			)
 		case err == io.EOF:
-			return IOError{
-				Err:     err,
-				Message: fmt.Sprintf("unexpected EOF, want %v bytes but only got %v", len(buff), end),
-			}
+			return NewIOError(
+				err,
+				r,
+				fmt.Sprintf("want %v bytes but only got %v", len(buff), end),
+				0,
+			)
 		case err != nil:
-			return IOError{
-				Err:     err,
-				Message: fmt.Sprintf("want %v bytes but only got %v bytes", len(buff), end),
-			}
+			return NewIOError(
+				err,
+				r,
+				"",
+				0,
+			)
 		default: //err == nil
-			return IOError{
-				Err:     io.ErrNoProgress,
-				Message: fmt.Sprintf("read %v bytes, need %v bytes", end, len(buff)),
-			}
+			return NewIOError(
+				io.ErrNoProgress,
+				r,
+				fmt.Sprintf("read %v bytes, need %v bytes", end, len(buff)),
+				0,
+			)
 		}
 	}
 	return nil
 }
 
 // Write writes to w from buff, handling errors of io.Writer with little overhead in almost all cases.
-// In an ideal write, only a single int equality check is performed. If the write reports the whole buffer is written, returned errors are ignored.
+// In an ideal write, only a single int equality check is performed. It returns any error from Write().
 func Write(buff []byte, w io.Writer) error {
 	n, err := w.Write(buff)
 	if n == len(buff) {
-		return nil
+		return err
 	}
 
 	end := n
@@ -78,24 +86,26 @@ func Write(buff []byte, w io.Writer) error {
 	if end != len(buff) {
 		switch {
 		case end > len(buff):
-			return IOError{
-				Err:     errors.New("bad io.Writer implementation"),
-				Message: fmt.Sprintf("Write() reported %v bytes written, but buffer is only %v bytes", end, len(buff)),
-			}
+			return NewIOError(
+				errors.New("bad io.Writer implementation"),
+				w,
+				fmt.Sprintf("Write() reported %v bytes written, but was only given %v bytes", end, len(buff)),
+				0,
+			)
 		case err == nil:
-			return IOError{
-				Err:     io.ErrShortWrite,
-				Message: fmt.Sprintf("want %v bytes but only wrote %v bytes with no error", len(buff), end),
-			}
-		case end > 0:
-			return IOError{
-				Err:     err,
-				Message: fmt.Sprintf("want %v bytes but only wrote %v bytes", len(buff), end),
-			}
-		default: // err != nil && end <= 0
-			return IOError{
-				Err: err,
-			}
+			return NewIOError(
+				io.ErrShortWrite,
+				w,
+				fmt.Sprintf("want %v bytes but only wrote %v bytes", len(buff), end),
+				0,
+			)
+		default:
+			return NewIOError(
+				err,
+				w,
+				fmt.Sprintf("want %v bytes but wrote %v bytes", len(buff), end),
+				0,
+			)
 		}
 	}
 	return nil

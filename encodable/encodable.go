@@ -18,6 +18,13 @@
 // The primary implementation, RegisterType
 package encodable
 
+// I intend to keep a curated lsit of important notes to keep in mind while developing this part of encs here.
+//
+// Every instance of unsafe.Pointer that exists must always point towards a valid object
+// unsafe.Poointer types are functional pointers with all the semantics that come with it;
+// at any time, the garbage collector could come along, try to dereference the pointer and crash the program. yikes.
+// If an invalid pointer is needed as an intermediary step, uintptr should be used.
+
 import (
 	"fmt"
 	"io"
@@ -136,11 +143,7 @@ func newEncodable(t reflect.Type, state *state) Encodable {
 		return NewString()
 	}
 
-	panic(encio.Error{
-		Err:     encio.ErrBadType,
-		Message: fmt.Sprintf("cannot create encodable for type %v", t),
-		Caller:  "enc.NewEncodable",
-	})
+	panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot create encodable for type %v", t), 0))
 }
 
 // NewSource returns a Source with the given config and new function.

@@ -39,24 +39,14 @@ func (e *Uint8) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Uint8) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint8.Encode",
-		}
-	}
+	checkPtr(ptr)
 	e.buff[0] = *(*uint8)(ptr)
 	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Uint8) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint8.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff[:], r); err != nil {
 		return err
 	}
@@ -92,12 +82,7 @@ func (e Uint16) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Uint16) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint16.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*uint16)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
@@ -106,12 +91,7 @@ func (e *Uint16) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Uint16) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint16.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff[:], r); err != nil {
 		return err
 	}
@@ -149,12 +129,7 @@ func (e *Uint32) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Uint32) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint32.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*uint32)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
@@ -165,12 +140,7 @@ func (e *Uint32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Uint32) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint32.Decode",
-		}
-	}
+	checkPtr(ptr)
 	err := encio.Read(e.buff[:], r)
 	if err != nil {
 		return err
@@ -211,12 +181,7 @@ func (e *Uint64) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Uint64) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint64.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*uint64)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
@@ -231,12 +196,7 @@ func (e *Uint64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Uint64) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint64.Decode",
-		}
-	}
+	checkPtr(ptr)
 	err := encio.Read(e.buff[:], r)
 	if err != nil {
 		return err
@@ -285,12 +245,7 @@ func (e *Uint) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Uint) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*uint)(ptr)
 	size := uint8(1)
 	if i <= maxSingleUint {
@@ -309,12 +264,7 @@ func (e *Uint) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Uint) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uint.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff[:1], r); err != nil {
 		return err
 	}
@@ -365,24 +315,14 @@ func (e *Int8) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Int8) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int8.Encode",
-		}
-	}
+	checkPtr(ptr)
 	e.buff[0] = *(*uint8)(ptr)
 	return encio.Write(e.buff[:], w)
 }
 
 // Decode implements Encodable
 func (e *Int8) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int8.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff[:], r); err != nil {
 		return err
 	}
@@ -417,12 +357,7 @@ func (e *Int16) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Int16) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int16.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*int16)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
@@ -432,12 +367,7 @@ func (e *Int16) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Int16) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int16.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff[:], r); err != nil {
 		return err
 	}
@@ -474,12 +404,7 @@ func (e *Int32) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Int32) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int32.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*int32)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
@@ -491,12 +416,7 @@ func (e *Int32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Int32) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int32.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff[:], r); err != nil {
 		return err
 	}
@@ -536,12 +456,7 @@ func (e *Int64) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Int64) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int64.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*int64)(ptr)
 	e.buff[0] = uint8(i)
 	e.buff[1] = uint8(i >> 8)
@@ -557,12 +472,7 @@ func (e *Int64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Int64) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int64.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff[:], r); err != nil {
 		return err
 	}
@@ -608,12 +518,7 @@ func (e *Int) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Int) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*int)(ptr)
 	size := 1
 	if i <= math.MaxInt8 && i >= int(minSingleInt) {
@@ -638,12 +543,7 @@ func (e *Int) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Int) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Int.Decode",
-		}
-	}
+	checkPtr(ptr)
 
 	if err := encio.Read(e.buff[:1], r); err != nil {
 		return err
@@ -696,12 +596,7 @@ func (e *Uintptr) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Uintptr) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uintptr.Encode",
-		}
-	}
+	checkPtr(ptr)
 	i := *(*uintptr)(ptr)
 	l := uint8(1)
 	if i <= maxSingleUint {
@@ -720,12 +615,7 @@ func (e *Uintptr) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Uintptr) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Uintptr.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff[:1], r); err != nil {
 		return err
 	}

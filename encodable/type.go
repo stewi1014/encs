@@ -4,6 +4,7 @@ import (
 	"encoding"
 	"reflect"
 	"time"
+	"unsafe"
 )
 
 // Type constants
@@ -29,6 +30,8 @@ var (
 	timeTimeType    = reflect.TypeOf(time.Time{})
 	interfaceType   = reflect.TypeOf(new(interface{})).Elem()
 	reflectTypeType = reflect.TypeOf(new(reflect.Type)).Elem()
+
+	unsafePointerType = reflect.TypeOf(unsafe.Pointer(new(struct{})))
 
 	invalidType = reflect.TypeOf(nil)
 )

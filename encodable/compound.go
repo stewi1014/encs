@@ -19,11 +19,7 @@ func NewPointer(t reflect.Type, config *Config) Encodable {
 
 func newPointer(t reflect.Type, state *state) (enc Encodable) { // TODO; improve performance in some cases by not using referencer when we can garuntee no self-references *that does not mean only recursive types*.
 	if t.Kind() != reflect.Ptr {
-		panic(encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.NewPointer",
-			Message: fmt.Sprintf("%v is not a pointer", t),
-		})
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a pointer", t), 0))
 	}
 
 	e := &Pointer{
@@ -71,24 +67,14 @@ func (e *Pointer) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Pointer.Encode",
-		}
-	}
+	checkPtr(ptr)
 
 	return e.r.encodeReference(*(*unsafe.Pointer)(ptr), e.elem, w)
 }
 
 // Decode implements Encodable
 func (e *Pointer) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Pointer.Decode",
-		}
-	}
+	checkPtr(ptr)
 
 	return e.r.decodeReference((*unsafe.Pointer)(ptr), e.elem, r)
 }
@@ -100,11 +86,7 @@ func NewMap(t reflect.Type, config *Config) *Map {
 
 func newMap(t reflect.Type, state *state) *Map {
 	if t.Kind() != reflect.Map {
-		panic(encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.NewMap",
-			Message: fmt.Sprintf("%v is not a map", t),
-		})
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a map", t), 0))
 	}
 
 	return &Map{
@@ -139,12 +121,7 @@ func (e *Map) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Map.Encode",
-		}
-	}
+	checkPtr(ptr)
 	v := reflect.NewAt(e.t, ptr).Elem()
 
 	l := uint32(v.Len())
@@ -174,12 +151,7 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Map.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
@@ -218,20 +190,10 @@ func NewInterface(t reflect.Type, config *Config) Encodable { // TODO; improve p
 
 func newInterface(t reflect.Type, state *state) (enc Encodable) {
 	if t.Kind() != reflect.Interface {
-		panic(encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.NewInterface",
-			Message: fmt.Sprintf("%v is not an interface", t),
-		})
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an interface", t), 0))
 	}
 	if state.Resolver == nil {
-		err := encio.Error{
-			Err:     encio.ErrBadConfig,
-			Caller:  "enc.NewInterface",
-			Message: fmt.Sprintf("Interface Encodables need a Resolver to function (config.Resolver is nil)"),
-		}
-
-		panic(err)
+		panic(encio.NewError(encio.ErrBadConfig, "interface encodables need a resolver to function (config.Resolver is nil)", 0))
 	}
 
 	i := &Interface{
@@ -275,12 +237,7 @@ func (e *Interface) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Interface.Encode",
-		}
-	}
+	checkPtr(ptr)
 
 	i := reflect.NewAt(e.t, ptr).Elem()
 	if i.IsNil() {
@@ -310,12 +267,7 @@ func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Interface.Decode",
-		}
-	}
+	checkPtr(ptr)
 	err := encio.Read(e.buff, r)
 	if err != nil {
 		return err
@@ -389,12 +341,9 @@ func NewSlice(t reflect.Type, config *Config) *Slice {
 
 func newSlice(t reflect.Type, state *state) *Slice {
 	if t.Kind() != reflect.Slice {
-		panic(encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.NewSlice",
-			Message: fmt.Sprintf("%v is not a slice", t),
-		})
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a slice", t), 0))
 	}
+
 	return &Slice{
 		elem: newEncodable(t.Elem(), state),
 		buff: make([]byte, 4),
@@ -424,12 +373,7 @@ func (e *Slice) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Slice.Encode",
-		}
-	}
+	checkPtr(ptr)
 	sptr := ptrSlice(ptr)
 	l := uint32(sptr.len)
 	e.buff[0] = uint8(l)
@@ -454,12 +398,7 @@ func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implemenets Encodable
 func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Slice.Decode",
-		}
-	}
+	checkPtr(ptr)
 	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
@@ -507,11 +446,7 @@ func NewArray(t reflect.Type, config *Config) *Array {
 
 func newArray(t reflect.Type, state *state) *Array {
 	if t.Kind() != reflect.Array {
-		panic(encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.NewArray",
-			Message: fmt.Sprintf("%v is not an Array", t),
-		})
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an Array", t), 0))
 	}
 	return &Array{
 		elem: newEncodable(t.Elem(), state),
@@ -546,12 +481,7 @@ func (e *Array) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e *Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Array.Encode",
-		}
-	}
+	checkPtr(ptr)
 	esize := e.elem.Type().Size()
 	for i := uintptr(0); i < e.len; i++ {
 		eptr := unsafe.Pointer(uintptr(ptr) + (i * esize))
@@ -565,12 +495,7 @@ func (e *Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implments Encodable
 func (e *Array) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Array.Decode",
-		}
-	}
+	checkPtr(ptr)
 	esize := e.elem.Type().Size()
 	for i := uintptr(0); i < e.len; i++ {
 		eptr := unsafe.Pointer(uintptr(ptr) + (i * esize))
@@ -598,11 +523,7 @@ func NewStruct(t reflect.Type, config *Config) *Struct {
 
 func newStruct(t reflect.Type, state *state) *Struct {
 	if t.Kind() != reflect.Struct {
-		panic(encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.NewStruct",
-			Message: fmt.Sprintf("%v is not a struct", t),
-		})
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", t), 0))
 	}
 
 	s := &Struct{
@@ -689,12 +610,7 @@ func (e Struct) Type() reflect.Type {
 
 // Encode implements Encodable
 func (e Struct) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Struct.Encode",
-		}
-	}
+	checkPtr(ptr)
 	for _, m := range e.members {
 		err := m.encodeMember(ptr, w)
 		if err != nil {
@@ -706,12 +622,7 @@ func (e Struct) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable
 func (e Struct) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	if ptr == nil {
-		return encio.Error{
-			Err:    encio.ErrNilPointer,
-			Caller: "enc.Struct.Decode",
-		}
-	}
+	checkPtr(ptr)
 	for _, m := range e.members {
 		err := m.decodeMember(ptr, r)
 		if err != nil {

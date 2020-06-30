@@ -40,7 +40,13 @@ type Resolver interface {
 	Size() int
 }
 
-var errAlreadyRegistered = errors.New("already registered")
+var (
+	// ErrAlreadyRegistered is returned if a type is already registered.
+	ErrAlreadyRegistered = errors.New("already registered")
+
+	// ErrNotRegistered is returned if a type has not been registered.
+	ErrNotRegistered = errors.New("not registered")
+)
 
 // NewRegisterResolver returns a new RegisterResolver TypeResolver
 func NewRegisterResolver(hasher hash.Hash64) *RegisterResolver {
@@ -89,17 +95,17 @@ func (rr *RegisterResolver) Register(T interface{}) error {
 	}
 
 	st := reflect.SliceOf(ty)
-	if err := rr.hashAndPut(st); err != nil && err != errAlreadyRegistered {
+	if err := rr.hashAndPut(st); err != nil && err != ErrAlreadyRegistered {
 		return err
 	}
 
 	pt := reflect.PtrTo(ty)
-	if err := rr.hashAndPut(pt); err != nil && err != errAlreadyRegistered {
+	if err := rr.hashAndPut(pt); err != nil && err != ErrAlreadyRegistered {
 		return err
 	}
 
 	if ty.Kind() == reflect.Ptr {
-		if err := rr.hashAndPut(ty.Elem()); err != nil && err != errAlreadyRegistered {
+		if err := rr.hashAndPut(ty.Elem()); err != nil && err != ErrAlreadyRegistered {
 			return err
 		}
 	}
@@ -122,17 +128,10 @@ func (rr *RegisterResolver) hash(ty reflect.Type) (out [8]byte, err error) {
 	buff := []byte(Name(ty))
 	n, err := rr.hasher.Write(buff)
 	if err != nil {
-		return out, encio.Error{
-			Err:    err,
-			Caller: "enc.RegisterResolver.hasher.Write",
-		}
+		return out, encio.NewError(err, "hash error", 0)
 	}
 	if n != len(buff) {
-		return out, encio.Error{
-			Err:     io.ErrShortWrite,
-			Caller:  "enc.RegisterResolver.hasher.Write",
-			Message: fmt.Sprintf("wrote %v, want %v", n, len(buff)),
-		}
+		return out, encio.NewError(io.ErrShortWrite, fmt.Sprintf("wrote %v, want %v", n, len(buff)), 0)
 	}
 	h := rr.hasher.Sum64()
 	out[0] = uint8(h)
@@ -151,17 +150,9 @@ func (rr *RegisterResolver) put(ty reflect.Type, h [8]byte) error {
 	defer rr.mapMutex.Unlock()
 	if oty, ok := rr.typeByID[h]; ok {
 		if oty == ty {
-			return encio.Error{
-				Err:     errAlreadyRegistered,
-				Caller:  encio.GetCaller(1),
-				Message: fmt.Sprintf("type %v", ty),
-			}
+			return encio.NewError(ErrAlreadyRegistered, fmt.Sprintf("type %v", ty), 1)
 		}
-		return encio.Error{
-			Err:     fmt.Errorf("hash collision"),
-			Caller:  encio.GetCaller(1),
-			Message: fmt.Sprintf("hash of %v and %v are both %v", ty, oty, h),
-		}
+		return encio.NewError(ErrAlreadyRegistered, fmt.Sprintf("hash of %v and %v are both %v", ty, oty, h), 1)
 	}
 	rr.typeByID[h] = ty
 	rr.idByType[ty] = h
@@ -194,24 +185,22 @@ func (rr *RegisterResolver) Encode(ty reflect.Type, w io.Writer) error {
 	}
 
 	// ty is not registered.
-	// register it now and encode.
+	// register it now and encode, returning an ErrNotRegistered error.
 	h, err := rr.hash(ty)
 	if err != nil {
-		return encio.Error{
-			Err:     err,
-			Message: fmt.Sprintf("%v not previously registered", ty),
-		}
+		return encio.NewError(ErrNotRegistered, fmt.Sprintf("%v not previously registered. registering now failed with %v", ty, err), 0)
 	}
 
 	err = rr.put(ty, h)
 	if err != nil {
-		return encio.Error{
-			Err:     err,
-			Message: fmt.Sprintf("%v not previously registered", ty),
-		}
+		return encio.NewError(ErrNotRegistered, fmt.Sprintf("%v not previously registered. registering now failed with %v", ty, err), 0)
 	}
 
-	return encio.Write(h[:], w)
+	err = encio.Write(h[:], w)
+	if err != nil {
+		return encio.NewError(ErrNotRegistered, fmt.Sprintf("%v not previously registered but registered now. writing failed with %v", ty, err), 0)
+	}
+	return encio.NewError(ErrNotRegistered, fmt.Sprintf("%v written but not previously registered. decoder may not understand it", ty), 0)
 }
 
 // Decode implements TypeResolver
@@ -226,34 +215,20 @@ func (rr *RegisterResolver) Decode(expected reflect.Type, r io.Reader) (reflect.
 	}
 
 	if expected == nil {
-		return nil, encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.RegisterResolver.Decode",
-			Message: fmt.Sprintf("received hash %v doesn't map to any known types. Is it registered?", h),
-		}
+		return nil, encio.NewError(ErrNotRegistered, fmt.Sprintf("received hash %v doesn't map to any known types. Is it registered?", h), 0)
 	}
 
 	eh, err := rr.hash(expected)
 	if err != nil {
-		return nil, encio.Error{
-			Err:     err,
-			Message: "hashing expected value",
-		}
+		return nil, encio.NewError(err, "couldn't hash expected type", 0)
 	}
 	if eh != h {
-		return nil, encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.RegisterResolver.Decode",
-			Message: fmt.Sprintf("received hash %v doesn't map to any known types or the expected type. Is it registered?", h),
-		}
+		return nil, encio.NewError(ErrNotRegistered, fmt.Sprintf("received hash %v doesn't map to any known types or the expected type. Is it registered?", h), 0)
 	}
 
-	if err := rr.put(expected, eh); err != nil {
-		return expected, encio.Error{
-			Err:     err,
-			Message: fmt.Sprintf("%v not previously registered", expected),
-		}
-	}
+	rr.put(expected, eh)
+	// Ignore errors from put; we've already suceeded in the decode (through the expected),
+	// and if it really does need to be registered now then ErrNotRegistered will be returned by a later call.
 
 	return expected, nil
 }

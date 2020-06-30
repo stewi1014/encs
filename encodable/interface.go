@@ -13,11 +13,7 @@ import (
 func Encode(enc Encodable, v interface{}, w io.Writer) error {
 	iv := reflect.TypeOf(v)
 	if iv != enc.Type() {
-		return encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "enc.Encode",
-			Message: fmt.Sprintf("cannot encode %v with %v Encodable", iv, enc.Type()),
-		}
+		return encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot encode %v with %v Encodable", iv, enc.Type()), 0)
 	}
 	iptr := ptrInterface(unsafe.Pointer(&v))
 	if iv.Kind() == reflect.Ptr {
@@ -30,11 +26,7 @@ func Encode(enc Encodable, v interface{}, w io.Writer) error {
 // and sets the interface at v to the new value.
 func Decode(enc Encodable, v *interface{}, r io.Reader) error {
 	if v == nil {
-		return encio.Error{
-			Err:     encio.ErrNilPointer,
-			Caller:  "enc.Decode",
-			Message: "cannot decode into interface when pointer to it is nil",
-		}
+		return encio.NewError(encio.ErrNilPointer, "cannot decode into interface when pointer to it is nil", 0)
 	}
 	ival := reflect.ValueOf(v).Elem()
 	val := reflect.New(enc.Type()).Elem()

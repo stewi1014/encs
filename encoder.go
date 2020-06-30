@@ -28,20 +28,12 @@ type Encoder struct {
 
 func (e *Encoder) Encode(v interface{}) error {
 	if v == nil {
-		return encio.Error{
-			Err:     encio.ErrNilPointer,
-			Caller:  "encs.Encoder.Encode",
-			Message: "cannot encode nil interface",
-		}
+		return encio.NewError(encio.ErrNilPointer, "cannot encode nil interface", 0)
 	}
 
 	t := reflect.TypeOf(v)
 	if t.Kind() != reflect.Ptr {
-		return encio.Error{
-			Err:     encio.ErrBadType,
-			Caller:  "encs.Encoder.Encode",
-			Message: "values must be passed by reference; a non-reference type is not decodable",
-		}
+		return encio.NewError(encio.ErrBadType, "values must be passed by reference", 0)
 	}
 
 	t = t.Elem() // the encoded type

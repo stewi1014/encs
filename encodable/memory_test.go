@@ -32,9 +32,4 @@ func TestMemory(t *testing.T) {
 			t.Fatalf("wrong byte; have %v, want %v", a2[i], a1[i])
 		}
 	}
-
-	err = m.Decode(nil, buff)
-	if err == nil {
-		t.Fatalf("no error thrown with nil pointer")
-	}
 }

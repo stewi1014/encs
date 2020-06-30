@@ -3,6 +3,8 @@ package encodable
 import (
 	"reflect"
 	"unsafe"
+
+	"github.com/stewi1014/encs/encio"
 )
 
 // ptr must be pointer to interface{}; not other interface types.
@@ -34,21 +36,14 @@ type slicePtr struct {
 	cap   int
 }
 
-func ptrString(ptr unsafe.Pointer) *stringPtr {
-	return (*stringPtr)(ptr)
-}
-
-type stringPtr struct {
-	array unsafe.Pointer
-	len   int
-}
-
-func (s *stringPtr) byteSlice() (buff []byte) {
-	buffPtr := ptrSlice(unsafe.Pointer(&buff))
-	buffPtr.array = s.array
-	buffPtr.len = s.len
-	buffPtr.cap = s.len
-	return
+// byteSliceAt returns a byteslice with the given length, using ptr as it's backing array.
+func byteSliceAt(ptr uintptr, cap int) []byte {
+	s := reflect.SliceHeader{
+		Data: ptr,
+		Len:  cap,
+		Cap:  cap,
+	}
+	return *(*[]byte)(unsafe.Pointer(&s))
 }
 
 // newAt creates a new type of t, pointing ptr to it.
@@ -61,4 +56,12 @@ func newAt(ptr *unsafe.Pointer, t reflect.Type) {
 func malloc(bytes uintptr, ptr *unsafe.Pointer) {
 	buff := make([]byte, bytes)
 	*ptr = *(*unsafe.Pointer)(unsafe.Pointer(&buff))
+}
+
+// checkPtr panics if ptr is nil.
+// As per the documentation of unsafe, unsafe.Pointer types cannot be nil at any time. See notes in encodable.go.
+func checkPtr(ptr unsafe.Pointer) {
+	if ptr == nil {
+		panic(encio.NewError(encio.ErrNilPointer, "unsafe.Pointer types are never allowed to be nil as per https://golang.org/pkg/unsafe/", 1))
+	}
 }

@@ -32,6 +32,7 @@ var (
 	reflectTypeType = reflect.TypeOf(new(reflect.Type)).Elem()
 
 	unsafePointerType = reflect.TypeOf(unsafe.Pointer(new(struct{})))
+	byteSliceType     = reflect.TypeOf([]byte{})
 
 	invalidType = reflect.TypeOf(nil)
 )

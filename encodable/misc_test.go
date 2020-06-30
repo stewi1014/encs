@@ -82,7 +82,7 @@ func TestString(t *testing.T) {
 		}
 
 		if ns != str {
-			t.Errorf("strings do not match; got %v", ns)
+			t.Errorf("strings do not match; got %v, wanted: %v", ns, str)
 		}
 	}
 }

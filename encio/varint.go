@@ -22,7 +22,7 @@ func (buff *Uvarint) Encode(w io.Writer, n uint32) error {
 		size++
 	}
 	buff[0] = maxSingleUint + size - 1
-	return Write(buff[:], w)
+	return Write(buff[:size], w)
 }
 
 // Decode reads a uint32 from r

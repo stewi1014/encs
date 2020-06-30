@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// NewConcurrent wraps an Encodable with Concurrent, using new to get new instances of the Encodable.
+// NewConcurrent wraps an Encodable with Concurrent, implementing Encodable with thread safety.
 func NewConcurrent(new func() Encodable) *Concurrent {
 	return &Concurrent{
 		new: new,
@@ -67,6 +67,7 @@ func (e *Concurrent) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	return enc.Decode(ptr, r)
 }
 
+// get returns a new Encodable, releasing ownership to the caller.
 func (e *Concurrent) get() Encodable {
 	e.encodersMutex.Lock()
 	l := len(e.encoders)

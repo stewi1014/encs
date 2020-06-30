@@ -260,9 +260,9 @@ func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 	elemEnc := e.getEncodable(elemType)
 	if e.state.r != nil {
-		return e.state.r.encodeReference(ptrInterface(ptr).ptr(), elemEnc, w)
+		return e.state.r.encodeReference(unsafe.Pointer(i.Pointer()), elemEnc, w)
 	}
-	return elemEnc.Encode(ptrInterface(ptr).ptr(), w)
+	return elemEnc.Encode(unsafe.Pointer(i.Pointer()), w)
 }
 
 // Decode implements Encodable
@@ -294,7 +294,7 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	var eptr unsafe.Pointer
 	// re-use existing pointer if possible
 	if elemt == ty {
-		eptr = unsafe.Pointer(ptrInterface(ptr).ptr())
+		eptr = unsafe.Pointer(i.Pointer())
 	}
 
 	enc := e.getEncodable(ty)
@@ -345,20 +345,21 @@ func newSlice(t reflect.Type, state *state) *Slice {
 	}
 
 	return &Slice{
+		t:    t,
 		elem: newEncodable(t.Elem(), state),
-		buff: make([]byte, 4),
 	}
 }
 
 // Slice is an Encodable for slices
 type Slice struct {
+	t    reflect.Type
 	elem Encodable
-	buff []byte
+	len  encio.Uvarint
 }
 
 // String implements Encodable
 func (e *Slice) String() string {
-	return fmt.Sprintf("Slice[%v]", e.elem)
+	return fmt.Sprintf("[]%v", e.elem)
 }
 
 // Size implemenets Encodable
@@ -371,24 +372,24 @@ func (e *Slice) Type() reflect.Type {
 	return reflect.SliceOf(e.elem.Type())
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.Encode.
+// Encoded 0-len and nil slices both have the effect of setting the decoded slice's
+// len and cap to 0. nil-ness of the slice being decoded into is retained.
 func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
-	sptr := ptrSlice(ptr)
-	l := uint32(sptr.len)
-	e.buff[0] = uint8(l)
-	e.buff[1] = uint8(l >> 8)
-	e.buff[2] = uint8(l >> 16)
-	e.buff[3] = uint8(l >> 24)
-	if err := encio.Write(e.buff, w); err != nil {
+
+	slice := reflect.NewAt(e.t, ptr).Elem()
+	if slice.IsNil() {
+		return e.len.Encode(w, 0)
+	}
+
+	l := slice.Len()
+	if err := e.len.Encode(w, uint32(slice.Len())); err != nil {
 		return err
 	}
 
-	esize := e.elem.Type().Size()
-
-	for i := uint32(0); i < l; i++ {
-		eptr := unsafe.Pointer(uintptr(sptr.array) + uintptr(i)*esize)
-		err := e.elem.Encode(eptr, w)
+	for i := 0; i < l; i++ {
+		err := e.elem.Encode(unsafe.Pointer(slice.Index(i).UnsafeAddr()), w)
 		if err != nil {
 			return err
 		}
@@ -396,37 +397,42 @@ func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return nil
 }
 
-// Decode implemenets Encodable
+// Decode implemenets Encodable.
+// Encoded 0-len and nil slices both have the effect of setting the decoded slice's
+// len and cap to 0. nil-ness of the slice being decoded into is retained.
 func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	if err := encio.Read(e.buff, r); err != nil {
+
+	l32, err := e.len.Decode(r)
+	l := int(l32)
+	if err != nil {
 		return err
 	}
 
-	l := uint32(e.buff[0])
-	l |= uint32(e.buff[1]) << 8
-	l |= uint32(e.buff[2]) << 16
-	l |= uint32(e.buff[3]) << 24
-
-	sptr := ptrSlice(ptr)
-	size := e.elem.Type().Size()
-
-	if uintptr(l)*size > uintptr(encio.TooBig) {
+	if uintptr(l)*e.elem.Type().Size() > uintptr(encio.TooBig) {
 		return encio.IOError{
 			Err:     encio.ErrMalformed,
-			Message: fmt.Sprintf("slice of length %v (%v bytes) is too big", l, int(l)*int(size)),
+			Message: fmt.Sprintf("slice of length %v (%v bytes) is too big", l, int(l)*int(e.elem.Type().Size())),
 		}
 	}
 
-	if sptr.array == nil || sptr.cap < int(l) {
-		// must allocate
-		malloc(size*uintptr(l), &sptr.array)
-		sptr.cap = int(l)
-	}
-	sptr.len = int(l)
+	slice := reflect.NewAt(e.t, ptr).Elem()
 
-	for i := uint32(0); i < l; i++ {
-		eptr := unsafe.Pointer(uintptr(sptr.array) + uintptr(i)*size)
+	if l == 0 {
+		slice.SetLen(0)
+		slice.SetCap(0)
+		return nil
+	}
+
+	if slice.Cap() < l {
+		// Not enough space, allocate
+		slice.Set(reflect.MakeSlice(e.t, l, l))
+	} else {
+		slice.SetLen(l)
+	}
+
+	for i := 0; i < l; i++ {
+		eptr := unsafe.Pointer(slice.Index(i).UnsafeAddr())
 		err := e.elem.Decode(eptr, r)
 		if err != nil {
 			return err

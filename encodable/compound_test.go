@@ -76,18 +76,24 @@ func TestStruct(t *testing.T) {
 			e := encodable.New(reflect.TypeOf(tC.encode), tC.config)
 			buff := new(bytes.Buffer)
 
-			err := encodable.Encode(e, tC.encode, buff)
+			enc := reflect.New(reflect.TypeOf(tC.encode)).Elem()
+			enc.Set(reflect.ValueOf(tC.encode))
+
+			err := e.Encode(unsafe.Pointer(enc.UnsafeAddr()), buff)
 			if err != nil {
 				t.Fatalf("encode error: %v", err)
 			}
 
 			checkSize(buff, e, t)
 
-			var decoded interface{}
-			err = encodable.Decode(e, &decoded, buff)
+			dec := reflect.New(reflect.TypeOf(tC.encode)).Elem()
+
+			err = e.Decode(unsafe.Pointer(dec.UnsafeAddr()), buff)
 			if err != nil {
 				t.Fatalf("decode error: %v", err)
 			}
+
+			decoded := dec.Interface()
 
 			if !reflect.DeepEqual(tC.encode, decoded) {
 				t.Fatalf("encoded %T:%v, got %T:%v", tC.encode, tC.encode, decoded, decoded)

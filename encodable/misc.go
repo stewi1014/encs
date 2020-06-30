@@ -19,6 +19,10 @@ func NewString() *String {
 
 // String is an Encodable for strings
 type String struct {
+	len encio.Uvarint
+
+	// buff's backing array is never to be touched unless explicitly set beforehand.
+	// It can point to read-only memopry from the previous operation.
 	buff []byte
 }
 
@@ -40,31 +44,24 @@ func (e *String) Type() reflect.Type {
 // Encode implemenets Encodable
 func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
-	strHeader := (*reflect.StringHeader)(ptr)
-	l := uint32(strHeader.Len)
-	e.buff[0] = uint8(l)
-	e.buff[1] = uint8(l >> 8)
-	e.buff[2] = uint8(l >> 16)
-	e.buff[3] = uint8(l >> 24)
-	if err := encio.Write(e.buff, w); err != nil {
+	str := (*string)(ptr)
+	l := uint32(len(*str))
+	if err := e.len.Encode(w, l); err != nil || l == 0 {
 		return err
 	}
 
-	buff := byteSliceAt(strHeader.Data, strHeader.Len)
-	return encio.Write(buff, w)
+	return encio.Write([]byte(*str), w)
 }
 
 // Decode implemenets Encodable
 func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	if err := encio.Read(e.buff, r); err != nil {
+
+	l, err := e.len.Decode(r)
+	if err != nil {
 		return err
 	}
 
-	l := uint32(e.buff[0])
-	l |= uint32(e.buff[1]) << 8
-	l |= uint32(e.buff[2]) << 16
-	l |= uint32(e.buff[3]) << 24
 	if int(l) > encio.TooBig {
 		return encio.IOError{
 			Err:     encio.ErrMalformed,

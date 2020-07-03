@@ -103,23 +103,6 @@ func (p *Pipe) Read(buff []byte) (int, error) {
 	return n, nil
 }
 
-// ReadByte implements io.ByteReader
-func (p *Pipe) ReadByte() (byte, error) {
-	p.cond.L.Lock()
-	for p.len() == 0 && !p.closed {
-		p.cond.Wait()
-	}
-	if p.closed {
-		p.cond.L.Unlock()
-		return 0, io.EOF
-	}
-
-	by := p.buff[p.off]
-	p.off++
-	p.cond.L.Unlock()
-	return by, nil
-}
-
 // Write implements io.Writer
 func (p *Pipe) Write(buff []byte) (int, error) {
 	p.cond.L.Lock()
@@ -133,21 +116,6 @@ func (p *Pipe) Write(buff []byte) (int, error) {
 
 	p.cond.L.Unlock()
 	return n, nil
-}
-
-// WriteByte implements io.ByteWriter
-func (p *Pipe) WriteByte(by byte) error {
-	p.cond.L.Lock()
-	if p.closed {
-		p.cond.L.Unlock()
-		return io.ErrClosedPipe
-	}
-
-	p.buff[p.grow(1)] = by
-	p.cond.Broadcast()
-
-	p.cond.L.Unlock()
-	return nil
 }
 
 // Close implements io.Closer

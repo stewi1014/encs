@@ -85,7 +85,7 @@ func BenchmarkRegisterResolverDecode(b *testing.B) {
 	e := encodable.NewRegisterResolver(nil)
 	for _, tt := range testTypes {
 		err := e.Register(tt)
-		if err != nil {
+		if err != nil && !errors.Is(err, encodable.ErrAlreadyRegistered) {
 			b.Fatal(err)
 		}
 	}
@@ -116,7 +116,7 @@ func BenchmarkRegisterResolverEncode(b *testing.B) {
 
 	for _, tt := range testTypes {
 		err := e.Register(tt)
-		if err != nil {
+		if err != nil && !errors.Is(err, encodable.ErrAlreadyRegistered) {
 			b.Fatal(err)
 		}
 	}

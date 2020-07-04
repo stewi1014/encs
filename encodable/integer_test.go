@@ -10,20 +10,6 @@ import (
 	"github.com/stewi1014/encs/encodable"
 )
 
-var (
-	intSink     int
-	int8Sink    int8
-	int16Sink   int16
-	int32Sink   int32
-	int64Sink   int64
-	uintSink    uint
-	uint8Sink   uint8
-	uint16Sink  uint16
-	uint32Sink  uint32
-	uint64Sink  uint64
-	uintptrSink uintptr
-)
-
 func TestUint8(t *testing.T) {
 	e := encodable.NewUint8()
 	buff := new(bytes.Buffer)
@@ -159,8 +145,6 @@ func TestUint(t *testing.T) {
 				t.Fatalf("Encode error: %v", err)
 			}
 
-			bytes := buff.Bytes()
-
 			var d uint
 			err = e.Decode(unsafe.Pointer(&d), buff)
 			if err != nil {
@@ -168,7 +152,7 @@ func TestUint(t *testing.T) {
 			}
 
 			if d != tC {
-				t.Fatalf("Encoded %v, but got %v, buffer %v", tC, d, bytes)
+				t.Fatalf("Encoded %v, but got %v", tC, d)
 			}
 
 			if buff.Len() != 0 {
@@ -310,8 +294,6 @@ func TestInt(t *testing.T) {
 				t.Fatalf("Encode error: %v", err)
 			}
 
-			bytes := buff.Bytes()
-
 			var d int
 			err = e.Decode(unsafe.Pointer(&d), buff)
 			if err != nil {
@@ -319,7 +301,7 @@ func TestInt(t *testing.T) {
 			}
 
 			if d != tC {
-				t.Fatalf("Encoded %v, but got %v, buffer: %v", tC, d, bytes)
+				t.Fatalf("Encoded %v, but got %v", tC, d)
 			}
 
 			if buff.Len() != 0 {
@@ -340,8 +322,14 @@ func BenchmarkUint64(b *testing.B) {
 	var u uint64
 
 	for i := 0; i < b.N; i++ {
-		enc.Encode(unsafe.Pointer(&uints[j]), buff)
-		enc.Decode(unsafe.Pointer(unsafe.Pointer(&u)), buff)
+		err := enc.Encode(unsafe.Pointer(&uints[j]), buff)
+		if err != nil {
+			b.Fatal(err)
+		}
+		err = enc.Decode(unsafe.Pointer(unsafe.Pointer(&u)), buff)
+		if err != nil {
+			b.Fatal(err)
+		}
 		if buff.Len() != 0 {
 			b.Fatalf("data remaining in buffer %v", buff.Bytes())
 		}
@@ -363,8 +351,14 @@ func BenchmarkUint(b *testing.B) {
 	var u uint
 
 	for i := 0; i < b.N; i++ {
-		enc.Encode(unsafe.Pointer(&uints[j]), buff)
-		enc.Decode(unsafe.Pointer(unsafe.Pointer(&u)), buff)
+		err := enc.Encode(unsafe.Pointer(&uints[j]), buff)
+		if err != nil {
+			b.Fatal(err)
+		}
+		err = enc.Decode(unsafe.Pointer(unsafe.Pointer(&u)), buff)
+		if err != nil {
+			b.Fatal(err)
+		}
 		j++
 		if j >= len(uints) {
 			j = 0
@@ -383,8 +377,14 @@ func BenchmarkInt(b *testing.B) {
 	var u int
 
 	for i := 0; i < b.N; i++ {
-		enc.Encode(unsafe.Pointer(&ints[j]), buff)
-		enc.Decode(unsafe.Pointer(unsafe.Pointer(&u)), buff)
+		err := enc.Encode(unsafe.Pointer(&ints[j]), buff)
+		if err != nil {
+			b.Fatal(err)
+		}
+		err = enc.Decode(unsafe.Pointer(unsafe.Pointer(&u)), buff)
+		if err != nil {
+			b.Fatal(err)
+		}
 
 		j++
 		if j >= len(ints) {

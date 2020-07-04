@@ -17,6 +17,6 @@ func checkPtr(ptr unsafe.Pointer) {
 
 // newAt creates a new type of t, pointing ptr to it.
 func newAt(ptr *unsafe.Pointer, t reflect.Type) {
-	new := reflect.New(t)
-	*ptr = unsafe.Pointer(new.Pointer())
+	value := reflect.New(t)
+	*ptr = unsafe.Pointer(value.Pointer())
 }

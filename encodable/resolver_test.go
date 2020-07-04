@@ -2,6 +2,7 @@ package encodable_test
 
 import (
 	"bytes"
+	"errors"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -46,13 +47,22 @@ func TestRegisterResolver(t *testing.T) {
 	d := encodable.NewRegisterResolver(nil)
 
 	for _, ty := range testTypes() {
-		e.Register(ty)
-		d.Register(ty)
+		err := e.Register(ty)
+		if err != nil && !errors.Is(err, encodable.ErrAlreadyRegistered) {
+			t.Fatal(err)
+		}
+		err = d.Register(ty)
+		if err != nil && !errors.Is(err, encodable.ErrAlreadyRegistered) {
+			t.Fatal(err)
+		}
 	}
 
 	for _, ty := range testTypes() {
 		buff := new(bytes.Buffer)
-		e.Encode(ty, buff)
+		err := e.Encode(ty, buff)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		decoded, err := d.Decode(ty, buff)
 		if err != nil {
@@ -74,10 +84,16 @@ func BenchmarkRegisterResolverDecode(b *testing.B) {
 	// populate buffer
 	e := encodable.NewRegisterResolver(nil)
 	for _, tt := range testTypes {
-		e.Register(tt)
+		err := e.Register(tt)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 	for i := 0; i < encodeNum; i++ {
-		e.Encode(testTypes[i%len(testTypes)], buff)
+		err := e.Encode(testTypes[i%len(testTypes)], buff)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	bs := buff.Bytes()
@@ -99,13 +115,19 @@ func BenchmarkRegisterResolverEncode(b *testing.B) {
 	e := encodable.NewRegisterResolver(nil)
 
 	for _, tt := range testTypes {
-		e.Register(tt)
+		err := e.Register(tt)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	b.ResetTimer()
 	var j int
 	for i := 0; i < b.N; i++ {
-		e.Encode(testTypes[i%len(testTypes)], ioutil.Discard)
+		err := e.Encode(testTypes[i%len(testTypes)], ioutil.Discard)
+		if err != nil {
+			b.Fatal(err)
+		}
 		j++
 		if j > len(testTypes) {
 			j = 0

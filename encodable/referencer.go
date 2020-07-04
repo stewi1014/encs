@@ -1,7 +1,6 @@
 package encodable
 
 import (
-	"fmt"
 	"io"
 	"reflect"
 	"unsafe"
@@ -17,14 +16,14 @@ type referencer struct {
 	// any calls will be made to encode/decodeReference. Simply wrapping the first Encodable to ask to have a referencer should suffice.
 	enc Encodable
 
-	// encoders is a map of Encodables for given types. used to prevent infinite recursion when resolving recursive types.
-	encoders map[reflect.Type]*Concurrent
-	buff     [1]byte
-
 	// index is a unique id for an encoded reference type. indexes are not static, and are resolved on every decode and encode.
 	// for encoding, this is used to ensure the type at a given pointer is only encoded once, with subsequent encodes only writing a link (index) to the previously encoded value to the buffer.
 	// for decoding, this is used to keep track of decoded types, and to resolve links (index) to previously decoded values when they are read from the buffer.
 	references []unsafe.Pointer
+
+	// encoders is a map of Encodables for given types. used to prevent infinite recursion when resolving recursive types.
+	encoders map[reflect.Type]*Concurrent
+	buff     [1]byte
 
 	// intEnc is used for encoding the index.
 	intEnc Int
@@ -102,7 +101,7 @@ func (ref *referencer) decodeReference(ptr *unsafe.Pointer, elem Encodable, r io
 		if index >= len(ref.references) {
 			return encio.IOError{
 				Err:     encio.ErrMalformed,
-				Message: fmt.Sprintf("object is stored by reference, but the referenced location doesnt exist"),
+				Message: "object is stored by reference, but the referenced location doesnt exist",
 			}
 		}
 
@@ -114,7 +113,7 @@ func (ref *referencer) decodeReference(ptr *unsafe.Pointer, elem Encodable, r io
 	default:
 		return encio.IOError{
 			Err:     encio.ErrMalformed,
-			Message: fmt.Sprintf("reference type byte is not nil, reference or encoded"),
+			Message: "reference type byte is not nil, reference or encoded",
 		}
 	}
 
@@ -151,7 +150,6 @@ func (ref *referencer) append(ptr unsafe.Pointer) {
 	copy(ref.references, nb)
 	ref.references = nb[:l+1]
 	ref.references[l] = ptr
-	return
 }
 
 // referencer must know when each encode and decode ends. less we make all reference or compund type Encodables reset us every encode/decode,

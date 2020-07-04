@@ -140,8 +140,14 @@ func BenchmarkString(b *testing.B) {
 
 	var j int
 	for i := 0; i < b.N; i++ {
-		e.Encode(unsafe.Pointer(&str), buff)
-		e.Decode(unsafe.Pointer(&stringSink), buff)
+		err := e.Encode(unsafe.Pointer(&str), buff)
+		if err != nil {
+			b.Fatal(err)
+		}
+		err = e.Decode(unsafe.Pointer(&stringSink), buff)
+		if err != nil {
+			b.Fatal(err)
+		}
 		if buff.Len() != 0 {
 			b.Fatalf("data still in buffer")
 		}

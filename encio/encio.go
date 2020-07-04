@@ -1,4 +1,4 @@
-// Package encio provides simple methods for encoding-relavent input and output, as well as error types.
+// Package encio provides simple methods for encoding-relevant input and output, as well as error types.
 // It is split from encodable to avoid its cluttered namespace.
 package encio
 
@@ -54,7 +54,7 @@ func Read(buff []byte, r io.Reader) error {
 				"",
 				0,
 			)
-		default: //err == nil
+		default: // err == nil
 			return NewIOError(
 				io.ErrNoProgress,
 				r,

@@ -21,8 +21,8 @@ type Resolver interface {
 	// Decode must only read the same number of bytes written by Encode().
 	//
 	// In the case of decoding into interfaces, it might be expected that the received type is the same as the existing type in the interface.
-	// in this case, it might be sufficent to simply check if the types are equal, relying on the expected type as an existing reflect.Type instance.
-	// In this case, bool or (bool, error) would be sufficent return values.
+	// in this case, it might be sufficient to simply check if the types are equal, relying on the expected type as an existing reflect.Type instance.
+	// In this case, bool or (bool, error) would be sufficient return values.
 	//
 	// Other implementations might attempt to completely resolve a reflect.Type value from encoded data,
 	// in which case expected is an uneccecary argument.
@@ -30,7 +30,7 @@ type Resolver interface {
 	// In the case of registration-based Resolvers, if the interface contains the type that's being sent,
 	// it can be fortuitus to register the expected type, as it might not have been registered before.
 	//
-	// I belive this function format is a good happy medium to allow for these different implementations,
+	// I believe this function format is a good happy medium to allow for these different implementations,
 	// however, Resolvers should always be certain that the type returned from decode is either the same as what was given to Encode, or nil.
 	// Incorrect types will cause panics, or worse, incorrect memory manipulation.
 	Decode(expected reflect.Type, r io.Reader) (reflect.Type, error)
@@ -83,11 +83,11 @@ type RegisterResolver struct {
 }
 
 // Register registers T, &T, []T, and *T if T is a pointer.
-func (rr *RegisterResolver) Register(T interface{}) error {
+func (rr *RegisterResolver) Register(t interface{}) error {
 	var ty reflect.Type
 	var ok bool
-	if ty, ok = T.(reflect.Type); !ok {
-		ty = reflect.TypeOf(T)
+	if ty, ok = t.(reflect.Type); !ok {
+		ty = reflect.TypeOf(t)
 	}
 
 	if err := rr.hashAndPut(ty); err != nil {
@@ -226,8 +226,9 @@ func (rr *RegisterResolver) Decode(expected reflect.Type, r io.Reader) (reflect.
 		return nil, encio.NewError(ErrNotRegistered, fmt.Sprintf("received hash %v doesn't map to any known types or the expected type. Is it registered?", h), 0)
 	}
 
+	// nolint
 	rr.put(expected, eh)
-	// Ignore errors from put; we've already suceeded in the decode (through the expected),
+	// Ignore errors from put; we've already succeeded in the decode (through the expected),
 	// and if it really does need to be registered now then ErrNotRegistered will be returned by a later call.
 
 	return expected, nil

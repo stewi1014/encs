@@ -44,13 +44,13 @@ func (e *Memory) Size() int {
 // Encode implements Encodable
 func (e *Memory) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
-	e.buff.Data = (uintptr)(ptr)
+	e.buff.Data = uintptr(ptr)
 	return encio.Write(*(*[]byte)(unsafe.Pointer(&e.buff)), w)
 }
 
 // Decode implements Decodable
 func (e *Memory) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	e.buff.Data = (uintptr)(ptr)
+	e.buff.Data = uintptr(ptr)
 	return encio.Read(*(*[]byte)(unsafe.Pointer(&e.buff)), r)
 }

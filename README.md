@@ -10,7 +10,7 @@ Goals include:
 Type-safe: The type is encoded along with the value, and decoders will decode only into the same type that was sent, or in the case of interface encoding,
 fill the interface with the same type as was sent. All types to be received must be Registered with Register()
 
-Stream-promiscuious: Encoded messages are completely self-contained, and encoded streams can be picked up by a Decoder mid-stream and decoded sucessfully,
+Stream-promiscuous: Encoded messages are completely self-contained, and encoded streams can be picked up by a Decoder mid-stream and decoded successfully,
 allowing a static Encoder to write to a dynamic number of receiving clients, and a dynamic number of sending clients to be decoded by a single Decoder.
 
 Modular and Open: Methods for encoding are exposed in sub-packages, allowing their low-level encoding methods to be used to create custom encoding systems for a given use case,

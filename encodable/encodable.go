@@ -63,7 +63,7 @@ type Encodable interface {
 	Size() int
 
 	// String returns a string showing the Encodable's structure.
-	// () shows a little information about the encoder, such as the type it encodes or relavent settings.
+	// () shows a little information about the encoder, such as the type it encodes or relevant settings.
 	// {} denotes sub-Encoders; encoders that encode parts of a larger Encodable.
 	// Comparing results from String is an effecive way of equality checking.
 	// It is thread safe.
@@ -78,7 +78,7 @@ func New(t reflect.Type, config *Config) Encodable {
 }
 
 // newEncodable creates a new Encodable from state.
-// as a general rule, New* functions are for creating new, independant Encodables,
+// as a general rule, New* functions are for creating new, independent Encodables,
 // while new* functions are for creating encodables that are children of existing Encodables.
 func newEncodable(t reflect.Type, state *state) Encodable {
 	ptrt := reflect.PtrTo(t)
@@ -147,14 +147,14 @@ func newEncodable(t reflect.Type, state *state) Encodable {
 }
 
 // NewSource returns a Source with the given config and new function.
-func NewSource(config *Config, new func(reflect.Type, *Config) Encodable) *Source {
+func NewSource(config *Config, newFunc func(reflect.Type, *Config) Encodable) *Source {
 	// we must hold config, so we copy it
 	config = config.copy()
 
 	return &Source{
 		encs:   make(map[reflect.Type]Encodable),
 		config: config,
-		new:    new,
+		new:    newFunc,
 	}
 }
 

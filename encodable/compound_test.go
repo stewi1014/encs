@@ -118,7 +118,10 @@ func BenchmarkStructEncode(b *testing.B) {
 
 	enc := encodable.NewStruct(reflect.TypeOf(benchStruct), nil)
 	for i := 0; i < b.N; i++ {
-		enc.Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
+		err := enc.Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 

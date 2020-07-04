@@ -47,7 +47,7 @@ func (e *Encoder) Encode(v interface{}) error {
 	// we've already confirmed that the interface contains a pointer type,
 	// elem should be a pointer to the actual value, not a pointer; the pointer type seems to be stored internally in the interface,
 	// so we take just take the address and go.
-	return ec.Encode(ptrInterface(unsafe.Pointer(&v)).elem, e.w)
+	return ec.Encode(unsafe.Pointer(reflect.ValueOf(v).Elem().UnsafeAddr()), e.w)
 }
 
 /*

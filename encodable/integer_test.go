@@ -11,56 +11,22 @@ import (
 )
 
 func TestUint8(t *testing.T) {
-	e := encodable.NewUint8()
-	buff := new(bytes.Buffer)
-	for i := uint8(0); ; i++ {
-		err := e.Encode(unsafe.Pointer(&i), buff)
-		if err != nil {
-			t.Fatalf("Error encoding: %v", err)
-		}
-		var d uint8
-		err = e.Decode(unsafe.Pointer(&d), buff)
-		if err != nil {
-			t.Fatalf("Error decoding: %v", err)
-		}
+	enc := encodable.NewUint8()
+	for tC := uint8(0); ; tC++ {
+		testGeneric(&tC, enc, t)
 
-		if d != i {
-			t.Fatalf("Encoded %v, but got %v", i, d)
-		}
-
-		if buff.Len() != 0 {
-			t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-		}
-
-		if i == 1<<8-1 {
+		if tC == 1<<8-1 {
 			break
 		}
 	}
 }
 
 func TestUint16(t *testing.T) {
-	e := encodable.NewUint16()
-	buff := new(bytes.Buffer)
-	for i := uint16(0); ; i++ {
-		err := e.Encode(unsafe.Pointer(&i), buff)
-		if err != nil {
-			t.Fatalf("Error encoding: %v", err)
-		}
-		var d uint16
-		err = e.Decode(unsafe.Pointer(&d), buff)
-		if err != nil {
-			t.Fatalf("Error decoding: %v", err)
-		}
+	enc := encodable.NewUint16()
+	for tC := uint16(0); ; tC++ {
+		testGeneric(&tC, enc, t)
 
-		if d != i {
-			t.Fatalf("Encoded %v, but got %v", i, d)
-		}
-
-		if buff.Len() != 0 {
-			t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-		}
-
-		if i == 1<<16-1 {
+		if tC == 1<<16-1 {
 			break
 		}
 	}
@@ -71,29 +37,11 @@ func TestUint32(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1,
 	}
 
-	e := encodable.NewUint32()
-	buff := new(bytes.Buffer)
+	enc := encodable.NewUint32()
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := e.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d uint32
-			err = e.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }
@@ -103,29 +51,11 @@ func TestUint64(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<64 - 1,
 	}
 
-	e := encodable.NewUint64()
-	buff := new(bytes.Buffer)
+	enc := encodable.NewUint64()
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := e.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d uint64
-			err = e.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }
@@ -135,81 +65,32 @@ func TestUint(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<bits.UintSize - 1,
 	}
 
-	e := encodable.NewUint()
-	buff := new(bytes.Buffer)
+	enc := encodable.NewUint()
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := e.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d uint
-			err = e.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }
 
 func TestInt8(t *testing.T) {
-	e := encodable.NewInt8()
-	buff := new(bytes.Buffer)
-	for i := int8(-1 << 7); ; i++ {
-		err := e.Encode(unsafe.Pointer(&i), buff)
-		if err != nil {
-			t.Fatalf("Error encoding: %v", err)
-		}
-		var d int8
-		err = e.Decode(unsafe.Pointer(&d), buff)
-		if err != nil {
-			t.Fatalf("Error decoding: %v", err)
-		}
+	enc := encodable.NewInt8()
+	for tC := int8(-1 << 7); ; tC++ {
+		testGeneric(&tC, enc, t)
 
-		if d != i {
-			t.Fatalf("Encoded %v, but got %v", i, d)
-		}
-		if buff.Len() != 0 {
-			t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-		}
-		if i == 1<<7-1 {
+		if tC == 1<<7-1 {
 			break
 		}
 	}
 }
 
 func TestInt16(t *testing.T) {
-	e := encodable.NewInt16()
-	buff := new(bytes.Buffer)
-	for i := int16(-1 << 15); ; i++ {
-		err := e.Encode(unsafe.Pointer(&i), buff)
-		if err != nil {
-			t.Fatalf("Error encoding: %v", err)
-		}
-		var d int16
-		err = e.Decode(unsafe.Pointer(&d), buff)
-		if err != nil {
-			t.Fatalf("Error decoding: %v", err)
-		}
+	enc := encodable.NewInt16()
+	for tC := int16(-1 << 15); ; tC++ {
+		testGeneric(&tC, enc, t)
 
-		if d != i {
-			t.Fatalf("Encoded %v, but got %v", i, d)
-		}
-
-		if buff.Len() != 0 {
-			t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-		}
-		if i == 1<<15-1 {
+		if tC == 1<<15-1 {
 			break
 		}
 	}
@@ -220,29 +101,11 @@ func TestInt32(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, -1 << 31, 1<<31 - 1, -1,
 	}
 
-	e := encodable.NewInt32()
-	buff := new(bytes.Buffer)
+	enc := encodable.NewInt32()
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := e.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d int32
-			err = e.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }
@@ -252,29 +115,11 @@ func TestInt64(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<63 - 1, -1, -1 << 63,
 	}
 
-	e := encodable.NewInt64()
-	buff := new(bytes.Buffer)
+	enc := encodable.NewInt64()
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := e.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d int64
-			err = e.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }
@@ -284,29 +129,11 @@ func TestInt(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1, 1<<(bits.UintSize-1) - 1, -1, -1 << 63,
 	}
 
-	e := encodable.NewInt()
-	buff := new(bytes.Buffer)
+	enc := encodable.NewInt()
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := e.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d int
-			err = e.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }
@@ -399,28 +226,10 @@ func TestUintptr(t *testing.T) {
 	}
 
 	enc := encodable.NewUintptr()
-	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := enc.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d uintptr
-			err = enc.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }

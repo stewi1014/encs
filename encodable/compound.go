@@ -85,18 +85,20 @@ func newMap(t reflect.Type, state *state) *Map {
 	}
 
 	return &Map{
-		key:  newEncodable(t.Key(), state),
-		val:  newEncodable(t.Elem(), state),
-		buff: make([]byte, 4),
-		t:    t,
+		key:     newEncodable(t.Key(), state),
+		val:     newEncodable(t.Elem(), state),
+		keyBuff: reflect.New(t.Key()).Elem(),
+		valBuff: reflect.New(t.Elem()).Elem(),
+		t:       t,
 	}
 }
 
 // Map is an Encodable for maps
 type Map struct {
 	key, val Encodable
-	buff     []byte
-	t        reflect.Type
+	encio.Uvarint
+	keyBuff, valBuff reflect.Value
+	t                reflect.Type
 }
 
 // String implements Encodable
@@ -119,23 +121,27 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	v := reflect.NewAt(e.t, ptr).Elem()
 
-	l := uint32(v.Len())
-	e.buff[0] = uint8(l)
-	e.buff[1] = uint8(l >> 8)
-	e.buff[2] = uint8(l >> 16)
-	e.buff[3] = uint8(l >> 24)
-	if err := encio.Write(e.buff, w); err != nil {
+	if v.IsNil() {
+		return e.Uvarint.Encode(w, 0)
+	}
+
+	if err := e.Uvarint.Encode(w, uint32(v.Len()+1)); err != nil {
 		return err
 	}
 
 	iter := v.MapRange()
+	e.keyBuff = reflect.New(v.Type().Key()).Elem()
+	e.valBuff = reflect.New(v.Type().Elem()).Elem()
 	for iter.Next() {
-		err := e.key.Encode(unsafe.Pointer(iter.Key().UnsafeAddr()), w)
+		e.keyBuff.Set(iter.Key())
+		e.valBuff.Set(iter.Value())
+
+		err := e.key.Encode(unsafe.Pointer(e.keyBuff.UnsafeAddr()), w)
 		if err != nil {
 			return err
 		}
 
-		err = e.val.Encode(unsafe.Pointer(iter.Value().UnsafeAddr()), w)
+		err = e.val.Encode(unsafe.Pointer(e.valBuff.UnsafeAddr()), w)
 		if err != nil {
 			return err
 		}
@@ -147,17 +153,24 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 // Decode implements Encodable
 func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	if err := encio.Read(e.buff, r); err != nil {
+	l, err := e.Uvarint.Decode(r)
+	if err != nil {
 		return err
 	}
 
-	l := uint32(e.buff[0])
-	l |= uint32(e.buff[1]) << 8
-	l |= uint32(e.buff[2]) << 16
-	l |= uint32(e.buff[3]) << 24
+	m := reflect.NewAt(e.t, ptr).Elem()
 
-	v := reflect.NewAt(e.t, ptr)
-	v.Elem().Set(reflect.New(e.t).Elem())
+	if l == 0 {
+		m.Set(reflect.New(e.t).Elem())
+		return nil
+	}
+	l--
+
+	if uintptr(l)*(e.key.Type().Size()+e.val.Type().Size()) > encio.TooBig {
+		return encio.NewIOError(encio.ErrMalformed, r, fmt.Sprintf("map size of %v is too big", l), 0)
+	}
+
+	v := reflect.MakeMapWithSize(e.t, int(l))
 
 	for i := uint32(0); i < l; i++ {
 		nKey := reflect.New(e.key.Type())
@@ -174,6 +187,8 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 		v.SetMapIndex(nKey.Elem(), nVal.Elem())
 	}
+
+	m.Set(v)
 
 	return nil
 }
@@ -210,11 +225,6 @@ type Interface struct {
 	buff     []byte
 }
 
-const (
-	ifNil = 1 << iota
-	ifNonNil
-)
-
 // String implements Encodable
 func (e *Interface) String() string {
 	return fmt.Sprintf("Interface(Type: %v, %v)", e.t.String(), e.state.String())
@@ -236,17 +246,19 @@ func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 	i := reflect.NewAt(e.t, ptr).Elem()
 	if i.IsNil() {
-		e.buff[0] = ifNil
+		e.buff[0] = 0
 		return encio.Write(e.buff, w)
 	}
 
-	e.buff[0] = ifNonNil
+	e.buff[0] = 1
 	err := encio.Write(e.buff, w)
 	if err != nil {
 		return err
 	}
 
 	elemType := i.Elem().Type()
+	elem := reflect.New(elemType).Elem()
+	elem.Set(i.Elem())
 
 	err = e.state.Resolver.Encode(elemType, w)
 	if err != nil {
@@ -254,23 +266,21 @@ func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	}
 
 	elemEnc := e.getEncodable(elemType)
-	if e.state.r != nil {
-		return e.state.r.encodeReference(unsafe.Pointer(i.Pointer()), elemEnc, w)
-	}
-	return elemEnc.Encode(unsafe.Pointer(i.Pointer()), w)
+	return elemEnc.Encode(unsafe.Pointer(elem.UnsafeAddr()), w)
 }
 
 // Decode implements Encodable
 func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	err := encio.Read(e.buff, r)
-	if err != nil {
+
+	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
 
 	i := reflect.NewAt(e.t, ptr).Elem()
 
-	if e.buff[0] == ifNil {
+	if e.buff[0] == 0 {
+		// Nil interface
 		i.Set(reflect.New(e.t).Elem())
 		return nil
 	}
@@ -280,42 +290,31 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		elemt = i.Elem().Type()
 	}
 
-	ty, err := e.state.Resolver.Decode(elemt, r)
+	rty, err := e.state.Resolver.Decode(elemt, r)
 	if err != nil {
 		return err
 	}
 
-	// decode, pointing eptr to the decoded value.
-	var eptr unsafe.Pointer
-	// re-use existing pointer if possible
-	if elemt == ty {
-		eptr = unsafe.Pointer(i.Pointer())
+	elem := reflect.New(rty).Elem()
+	if rty == elemt {
+		// The interface already holds a value of the same type as we're receiving.
+		// Unfortunately we can't simply go in and modify it directly due to complex interface semantics.
+		// What we can do however, is
+		elem.Set(i.Elem()) // copy the existing value.
+
+		// Now why would we do that?
+		// While we're stuck with the previous allocation, **subsequent encodables do not have to be stuck allocating everything after this**.
+		// For instance, if the interface was holding a struct with a slice member then when the slice encodable gets around to do its thing,
+		// it will find the backing array pointer and avoid allocating a new one, assuming it's non-nil and cap is large enough.
 	}
 
-	enc := e.getEncodable(ty)
-	if e.state.r != nil {
-		// decode into eptr with referencer
-		if err := e.state.r.decodeReference(&eptr, enc, r); err != nil {
-			return err
-		}
+	enc := e.getEncodable(rty)
+	if err := enc.Decode(unsafe.Pointer(elem.UnsafeAddr()), r); err != nil {
+		return err
 	}
-	// do our own decoding
-	var decoded reflect.Value
-	if eptr == nil {
-		// we couldn't re-use our old value
-		decoded = reflect.New(enc.Type())
-		eptr = unsafe.Pointer(decoded.Pointer())
-		if err := enc.Decode(eptr, r); err != nil {
-			return err
-		}
-	} else {
-		// we could re-use our old value
-		decoded = reflect.NewAt(enc.Type(), eptr)
-		if err := enc.Decode(eptr, r); err != nil {
-			return err
-		}
-	}
-	i.Set(decoded.Elem())
+
+	i.Set(elem)
+
 	return nil
 }
 
@@ -379,7 +378,7 @@ func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	}
 
 	l := slice.Len()
-	if err := e.len.Encode(w, uint32(slice.Len())); err != nil {
+	if err := e.len.Encode(w, uint32(l+1)); err != nil {
 		return err
 	}
 
@@ -397,12 +396,18 @@ func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 // len and cap to 0. nil-ness of the slice being decoded into is retained.
 func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
+	slice := reflect.NewAt(e.t, ptr).Elem()
 
-	l32, err := e.len.Decode(r)
-	l := int(l32)
+	l, err := e.len.Decode(r)
 	if err != nil {
 		return err
 	}
+	if l == 0 {
+		// Nil slice
+		slice.Set(reflect.New(e.t).Elem())
+		return nil
+	}
+	l--
 
 	if uintptr(l)*e.elem.Type().Size() > uintptr(encio.TooBig) {
 		return encio.IOError{
@@ -411,22 +416,15 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		}
 	}
 
-	slice := reflect.NewAt(e.t, ptr).Elem()
-
-	if l == 0 {
-		slice.SetLen(0)
-		slice.SetCap(0)
-		return nil
-	}
-
-	if slice.Cap() < l {
+	length := int(l)
+	if slice.Cap() < length || slice.Cap() == 0 {
 		// Not enough space, allocate
-		slice.Set(reflect.MakeSlice(e.t, l, l))
+		slice.Set(reflect.MakeSlice(e.t, length, length))
 	} else {
-		slice.SetLen(l)
+		slice.SetLen(length)
 	}
 
-	for i := 0; i < l; i++ {
+	for i := 0; i < length; i++ {
 		eptr := unsafe.Pointer(slice.Index(i).UnsafeAddr())
 		err := e.elem.Decode(eptr, r)
 		if err != nil {

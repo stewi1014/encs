@@ -1,7 +1,6 @@
 package encodable_test
 
 import (
-	"bytes"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -10,6 +9,189 @@ import (
 
 	"github.com/stewi1014/encs/encodable"
 )
+
+func TestPointer(t *testing.T) {
+	testCases := []struct {
+		desc   string
+		encode interface{}
+	}{
+		{
+			desc: "Nil Pointer",
+			encode: func() **int {
+				var i *int
+				return &i
+			}(),
+		},
+		{
+			desc: "Non-nil Pointer",
+			encode: func() **int {
+				i := new(int)
+				return &i
+			}(),
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			e := encodable.NewPointer(reflect.TypeOf(tC.encode).Elem(), nil)
+			testGeneric(tC.encode, e, t)
+		})
+	}
+}
+
+func TestMap(t *testing.T) {
+	testCases := []struct {
+		desc   string
+		encode interface{}
+	}{
+		{
+			desc: "Nil Map",
+			encode: func() *map[string]int {
+				var m map[string]int
+				return &m
+			}(),
+		},
+		{
+			desc: "0 Length Map",
+			encode: func() *map[string]int {
+				m := make(map[string]int)
+				return &m
+			}(),
+		},
+		{
+			desc: "Non-nil [string]int map",
+			encode: func() *map[string]int {
+				m := map[string]int{
+					"Hello": 1,
+					"World": 2,
+				}
+				return &m
+			}(),
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			e := encodable.NewMap(reflect.TypeOf(tC.encode).Elem(), nil)
+			testGeneric(tC.encode, e, t)
+		})
+	}
+}
+
+func TestInterface(t *testing.T) {
+	testCases := []struct {
+		desc   string
+		encode interface{}
+	}{
+		{
+			desc: "Nil Interface",
+			encode: func() *interface{} {
+				var m interface{}
+				return &m
+			}(),
+		},
+		{
+			desc: "Int Interface",
+			encode: func() *interface{} {
+				var m interface{} = int(1)
+				return &m
+			}(),
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			e := encodable.NewInterface(reflect.TypeOf(tC.encode).Elem(), &encodable.Config{
+				Resolver: encodable.NewRegisterResolver(nil),
+			})
+			testGeneric(tC.encode, e, t)
+		})
+	}
+}
+
+func TestSlice(t *testing.T) {
+	testCases := []struct {
+		desc   string
+		encode interface{}
+	}{
+		{
+			desc: "Nil Slice",
+			encode: func() *[]int {
+				var m []int
+				return &m
+			}(),
+		},
+		{
+			desc: "Empty Int slice",
+			encode: func() *[]int {
+				m := []int{}
+				return &m
+			}(),
+		},
+		{
+			desc: "A few numbers",
+			encode: func() *[]int {
+				m := []int{
+					1, 2, 3, 4,
+				}
+				return &m
+			}(),
+		},
+		{
+			desc: "Some strings",
+			encode: func() *[]string {
+				m := []string{
+					"Hello",
+					"World",
+				}
+				return &m
+			}(),
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			e := encodable.NewSlice(reflect.TypeOf(tC.encode).Elem(), nil)
+			testGeneric(tC.encode, e, t)
+		})
+	}
+}
+
+func TestArray(t *testing.T) {
+	testCases := []struct {
+		desc   string
+		encode interface{}
+	}{
+		{
+			desc: "Empty Int array",
+			encode: func() *[0]int {
+				m := [0]int{}
+				return &m
+			}(),
+		},
+		{
+			desc: "A few numbers",
+			encode: func() *[4]int {
+				m := [4]int{
+					1, 2, 3, 4,
+				}
+				return &m
+			}(),
+		},
+		{
+			desc: "Some strings",
+			encode: func() *[2]string {
+				m := [2]string{
+					"Hello",
+					"A longer string",
+				}
+				return &m
+			}(),
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			e := encodable.NewArray(reflect.TypeOf(tC.encode).Elem(), nil)
+			testGeneric(tC.encode, e, t)
+		})
+	}
+}
 
 type TestStruct1 struct {
 	Exported1 uint
@@ -30,7 +212,6 @@ func TestStruct(t *testing.T) {
 		desc   string
 		config *encodable.Config
 		encode interface{}
-		want   interface{}
 	}{
 		{
 			desc: "TestStruct1",
@@ -38,13 +219,9 @@ func TestStruct(t *testing.T) {
 				Resolver:          nil,
 				IncludeUnexported: false,
 			},
-			encode: TestStruct1{
+			encode: &TestStruct1{
 				Exported1: 6,
 				Exported2: "Hello world!",
-			},
-			want: TestStruct1{
-				Exported1: 6,
-				Exported2: "Hello World!",
 			},
 		},
 		{
@@ -61,47 +238,13 @@ func TestStruct(t *testing.T) {
 				Spouse:   true,
 				Money:    -1 * (2 * 1000),
 			},
-			want: &TestStruct2{
-				Name:     "John",
-				BirthDay: time.Date(2019, 10, 14, 5, 50, 20, 0, time.UTC),
-				Phone:    "7738234",
-				Siblings: 0,
-				Spouse:   true,
-				Money:    -1 * (2 * 1000),
-			},
 		},
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			e := encodable.New(reflect.TypeOf(tC.encode), tC.config)
-			buff := new(bytes.Buffer)
+			e := encodable.New(reflect.TypeOf(tC.encode).Elem(), tC.config)
 
-			enc := reflect.New(reflect.TypeOf(tC.encode)).Elem()
-			enc.Set(reflect.ValueOf(tC.encode))
-
-			err := e.Encode(unsafe.Pointer(enc.UnsafeAddr()), buff)
-			if err != nil {
-				t.Fatalf("encode error: %v", err)
-			}
-
-			checkSize(buff, e, t)
-
-			dec := reflect.New(reflect.TypeOf(tC.encode)).Elem()
-
-			err = e.Decode(unsafe.Pointer(dec.UnsafeAddr()), buff)
-			if err != nil {
-				t.Fatalf("decode error: %v", err)
-			}
-
-			decoded := dec.Interface()
-
-			if !reflect.DeepEqual(tC.encode, decoded) {
-				t.Fatalf("encoded %T:%v, got %T:%v", tC.encode, tC.encode, decoded, decoded)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("data remaining in buffer %v", buff.Bytes())
-			}
+			testGeneric(tC.encode, e, t)
 		})
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/stewi1014/encs/encio"
 )
 
+// TODO: Throw all of this in the trash. It's slow, complex and can be done smarter
+
 // referencer resolves recursive types and values, and stops re-encoding of pointers to the same value.
 // member Encodables call newEncodable, encodeReference and decodeReference instead of performing their own sub-type encoding.
 type referencer struct {
@@ -119,7 +121,8 @@ func (ref *referencer) decodeReference(ptr *unsafe.Pointer, elem Encodable, r io
 
 	// we must decode the type, and store a pointer to it
 	if *ptr == nil {
-		newAt(ptr, elem.Type())
+		value := reflect.New(elem.Type())
+		*ptr = unsafe.Pointer(value.Pointer())
 	}
 
 	ref.append(*ptr) // Must be before elem.Decode in case it calls us during its decode.

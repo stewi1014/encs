@@ -3,7 +3,7 @@ package encio
 import "io"
 
 const (
-	maxSingleUint = 255 - 8
+	maxSingleUint = 255 - 4
 )
 
 // Uvarint provides fast methods for reading and writing uint32s in variable-length format.

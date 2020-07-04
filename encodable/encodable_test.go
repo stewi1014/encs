@@ -26,7 +26,7 @@ type buffer struct {
 	off  int
 }
 
-//reset resets reading
+// reset resets reading
 func (b *buffer) Reset() {
 	b.off = 0
 }

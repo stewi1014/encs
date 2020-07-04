@@ -14,11 +14,14 @@ type ExampleStruct struct {
 	Birthday time.Time
 }
 
-func ExampleEncodeDecode() {
+func Example() {
 	buff := new(bytes.Buffer)
 
 	// This would typically go in an init() function.
-	encs.Register(ExampleStruct{})
+	err := encs.Register(ExampleStruct{})
+	if err != nil {
+		panic(err)
+	}
 
 	birthday, _ := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
 
@@ -33,7 +36,7 @@ func ExampleEncodeDecode() {
 
 	enc := encs.NewEncoder(buff, nil)
 
-	err := enc.Encode(&example)
+	err = enc.Encode(&example)
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -137,13 +137,13 @@ func NewBinaryMarshaler(t reflect.Type) *BinaryMarshaler {
 		if implementsBinaryMarshaler(reflect.PtrTo(t)) != nil {
 			panic(err)
 		}
-		//init referenced
+		// init referenced
 		e.createReference = true
 		ival := reflect.ValueOf(&e.i).Elem()
 		ival.Set(reflect.New(t))
 
 	} else {
-		//init direct
+		// init direct
 		ival := reflect.ValueOf(&e.i).Elem()
 		ival.Set(reflect.New(t).Elem())
 	}

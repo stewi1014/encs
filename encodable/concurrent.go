@@ -9,9 +9,9 @@ import (
 )
 
 // NewConcurrent wraps an Encodable with Concurrent, implementing Encodable with thread safety.
-func NewConcurrent(new func() Encodable) *Concurrent {
+func NewConcurrent(newFunc func() Encodable) *Concurrent {
 	return &Concurrent{
-		new: new,
+		new: newFunc,
 	}
 }
 

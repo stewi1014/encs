@@ -40,11 +40,6 @@ type Pointer struct {
 	buff []byte
 }
 
-const (
-	encodedPtr = iota
-	nilPtr
-)
-
 // String implements Encodable
 func (e *Pointer) String() string {
 	if e.r != nil {
@@ -305,22 +300,22 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		}
 	}
 	// do our own decoding
-	var new reflect.Value
+	var decoded reflect.Value
 	if eptr == nil {
 		// we couldn't re-use our old value
-		new = reflect.New(enc.Type())
-		eptr = unsafe.Pointer(new.Pointer())
+		decoded = reflect.New(enc.Type())
+		eptr = unsafe.Pointer(decoded.Pointer())
 		if err := enc.Decode(eptr, r); err != nil {
 			return err
 		}
 	} else {
 		// we could re-use our old value
-		new = reflect.NewAt(enc.Type(), eptr)
+		decoded = reflect.NewAt(enc.Type(), eptr)
 		if err := enc.Decode(eptr, r); err != nil {
 			return err
 		}
 	}
-	i.Set(new.Elem())
+	i.Set(decoded.Elem())
 	return nil
 }
 
@@ -544,11 +539,11 @@ func newStruct(t reflect.Type, state *state) *Struct {
 		}
 	}
 
-	//TODO implement Config.StructTag
+	// TODO implement Config.StructTag
 
 	// struct members are sorted alphabetically. Since there is no coordination of member data,
 	// decoders must decode in the same order the encoders wrote.
-	// Alphabetically is a pretty platform-independant way of sorting the fields.
+	// Alphabetically is a pretty platform-independent way of sorting the fields.
 	sort.Sort(sms)
 
 	s.members = make([]structMember, len(sms))

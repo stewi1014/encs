@@ -4,7 +4,6 @@ import (
 	"encoding"
 	"reflect"
 	"time"
-	"unsafe"
 )
 
 // Type constants
@@ -27,13 +26,6 @@ var (
 	stringType     = reflect.TypeOf(string(""))
 	boolType       = reflect.TypeOf(bool(true))
 
-	timeTimeType    = reflect.TypeOf(time.Time{})
-	interfaceType   = reflect.TypeOf(new(interface{})).Elem()
-	reflectTypeType = reflect.TypeOf(new(reflect.Type)).Elem()
-
-	unsafePointerType = reflect.TypeOf(unsafe.Pointer(new(struct{})))
-	byteSliceType     = reflect.TypeOf([]byte{})
-
 	invalidType = reflect.TypeOf(nil)
 )
 
@@ -41,7 +33,6 @@ var (
 var (
 	binaryMarshalerIface   = reflect.TypeOf(new(encoding.BinaryMarshaler)).Elem()
 	binaryUnmarshalerIface = reflect.TypeOf(new(encoding.BinaryUnmarshaler)).Elem()
-	encodableIface         = reflect.TypeOf(new(Encodable)).Elem()
 )
 
 var builtin = []interface{}{

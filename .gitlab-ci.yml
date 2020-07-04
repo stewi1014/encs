@@ -43,4 +43,5 @@ test:
   script: 
     - "go test ./... -coverprofile cover.out -race"
     - "go tool cover -func cover.out"
-    - "golangci-lint run" 
+    - "golangci-lint run"
+    - "go test -bench=. ./..."

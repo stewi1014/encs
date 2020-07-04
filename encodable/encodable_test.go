@@ -3,21 +3,61 @@ package encodable_test
 import (
 	"bytes"
 	"io"
+	"reflect"
 	"testing"
+	"unsafe"
 
 	"github.com/stewi1014/encs/encodable"
 )
 
-// helper functions for testing
+var seen = make(map[string]encodable.Encodable)
 
-func checkSize(buff *bytes.Buffer, e encodable.Encodable, t *testing.T) {
-	s := e.Size()
-	if s < 0 {
-		return
+func testGeneric(v interface{}, e encodable.Encodable, t *testing.T) {
+	name := e.String()
+	if previous, ok := seen[name]; ok {
+		if previous.Type() != e.Type() {
+			t.Errorf("Two Encodables return the name %v, but one encodes %v and the other encodes %v", name, e.Type(), previous.Type())
+		}
+		if previous.Size() != e.Size() {
+			t.Errorf("Two Encodables return the name %v, but one has Size() %v and the other is %v", name, e.Size(), previous.Size())
+		}
+	} else {
+		seen[name] = e
 	}
 
-	if buff.Len() > s {
-		t.Fatalf("reported size smaller than written bytes; reported %v but wrote %v bytes", s, buff.Len())
+	val := reflect.ValueOf(v).Elem()
+	ptr := unsafe.Pointer(val.UnsafeAddr())
+
+	if e.Type() != val.Type() {
+		t.Errorf("Type() returns %v but type to encode is %v", e.Type(), val.Type())
+	}
+
+	buff := new(bytes.Buffer)
+
+	err := e.Encode(ptr, buff)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if size := e.Size(); size > 0 {
+		if buff.Len() > size {
+			t.Errorf("Size() returns %v but %v bytes were written", size, buff.Len())
+		}
+	}
+
+	decodedValue := reflect.New(val.Type()).Elem()
+	decodedPtr := unsafe.Pointer(decodedValue.UnsafeAddr())
+	err = e.Decode(decodedPtr, buff)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(val.Interface(), decodedValue.Interface()) {
+		t.Errorf("%v (%v, nil: %v) and %v (%v, nil: %v) are not equal", val.Type(), val, val.IsNil(), decodedValue.Type(), decodedValue, decodedValue.IsNil())
+	}
+
+	if buff.Len() > 0 {
+		t.Errorf("data remaining in buffer %v", buff.Bytes())
 	}
 }
 

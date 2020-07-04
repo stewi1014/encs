@@ -62,7 +62,7 @@ func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		return err
 	}
 
-	if int(l) > encio.TooBig {
+	if uintptr(l) > encio.TooBig {
 		return encio.IOError{
 			Err:     encio.ErrMalformed,
 			Message: fmt.Sprintf("string with length %v is too big", l),
@@ -234,7 +234,7 @@ func (e *BinaryMarshaler) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	l |= uint32(e.buff[1]) << 8
 	l |= uint32(e.buff[2]) << 16
 	l |= uint32(e.buff[3]) << 24
-	if int(l) > encio.TooBig {
+	if uintptr(l) > encio.TooBig {
 		return encio.NewError(encio.ErrMalformed, fmt.Sprintf("buffer with length %v is too big", l), 0)
 	}
 

@@ -47,28 +47,10 @@ func TestFloat64(t *testing.T) {
 	}
 
 	enc := encodable.NewFloat64()
-	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := enc.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d float64
-			err = enc.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }
@@ -79,28 +61,10 @@ func TestComplex64(t *testing.T) {
 	}
 
 	enc := encodable.NewComplex64()
-	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := enc.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d complex64
-			err = enc.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }
@@ -111,28 +75,10 @@ func TestComplex128(t *testing.T) {
 	}
 
 	enc := encodable.NewComplex128()
-	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := enc.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d complex128
-			err = enc.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, enc, t)
 		})
 	}
 }

@@ -81,7 +81,7 @@ func (e IOError) Error() string {
 	str := fmt.Sprintf("\"%v\"", e.Err.Error())
 
 	if e.Device != nil {
-		str += fmt.Sprintf(" using %v", e.Device)
+		str += fmt.Sprintf(" using %T", e.Device)
 	}
 
 	if e.Location != "" {

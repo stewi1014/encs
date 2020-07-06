@@ -2,101 +2,177 @@ package encodable
 
 import (
 	"fmt"
+	"hash/crc32"
 	"io"
 	"reflect"
 	"sort"
+	"strconv"
 	"unicode"
-	"unicode/utf8"
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
 )
 
-// NewPointer returns a new Pointer Encodable.
-func NewPointer(t reflect.Type, config *Config) Encodable {
-	return newPointer(t, config.genState())
-}
-
-func newPointer(t reflect.Type, state *state) (enc Encodable) { // TODO; improve performance in some cases by not using referencer when we can garuntee no self-references *that does not mean only recursive types*.
-	if t.Kind() != reflect.Ptr {
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a pointer", t), 0))
+// NewPointer returns a new pointer Encodable.
+func NewPointer(ty reflect.Type, config Config, src Source) Encodable {
+	if ty.Kind() != reflect.Ptr {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a pointer", ty), 0))
 	}
 
-	e := &Pointer{
-		ty:   t,
-		buff: make([]byte, 1),
+	return &Pointer{
+		pointers: make([]unsafe.Pointer, 0, 8),
+		ty:       ty,
+		elem:     src.NewEncodable(ty.Elem(), config),
 	}
-
-	e.r, enc = state.referencer(e)
-	e.elem = e.r.newEncodable(t.Elem(), state)
-	return
 }
+
+const (
+	nilPointer = -1 - iota
+	encodedPointer
+)
 
 // Pointer encodes pointers to concrete types.
 type Pointer struct {
-	ty   reflect.Type
-	r    *referencer
-	elem Encodable
-	buff []byte
+	pointers []unsafe.Pointer
+	ty       reflect.Type
+	elem     Encodable
+	intEnc   encio.Int
 }
 
-// String implements Encodable
-func (e *Pointer) String() string {
-	if e.r != nil {
-		// Not particularly relevant to callers except that when using strings to equality check,
-		// the configuration of the resolver is important; it effects the encoded format.
-		return fmt.Sprintf("Pointer(resolver at %v){%v}", e.r.Type().String(), e.elem.String())
-	}
-	return fmt.Sprintf("Pointer{%v}", e.elem.String())
-}
+// String implements Encodable.
+func (e *Pointer) String() string { return "*" + e.elem.String() }
 
-// Size implements Sized
+// Size implements Sized.
 func (e *Pointer) Size() int {
-	return e.elem.Size() + 5
+	return e.elem.Size() + 4
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Pointer) Type() reflect.Type {
 	return e.ty
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
+	if len(e.pointers) == 0 {
+		// We're the first call.
+		// Wipe pointers when we exit.
+		defer e.reset()
+	}
 
-	return e.r.encodeReference(*(*unsafe.Pointer)(ptr), e.elem, w)
+	if *(*unsafe.Pointer)(ptr) == nil {
+		// Nil pointer
+		return e.intEnc.EncodeInt32(w, nilPointer)
+	}
+
+	if index, found := e.hasEncoded(ptr); found {
+		// We've encoded this pointer before.
+		// Write a reference.
+		return e.intEnc.EncodeInt32(w, int32(index))
+	}
+
+	e.addEncoded(ptr)
+	if err := e.intEnc.EncodeInt32(w, encodedPointer); err != nil {
+		return err
+	}
+
+	return e.elem.Encode(*(*unsafe.Pointer)(ptr), w)
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *Pointer) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
+	if len(e.pointers) == 0 {
+		// We're the first call.
+		// Wipe pointers when we exit.
+		defer e.reset()
+	}
 
-	return e.r.decodeReference((*unsafe.Pointer)(ptr), e.elem, r)
+	n, err := e.intEnc.DecodeInt32(r)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case n == nilPointer:
+		v := reflect.NewAt(e.ty, ptr).Elem()
+		v.Set(reflect.New(e.ty).Elem())
+		return nil
+
+	case n > 0:
+		if int(n) >= len(e.pointers) {
+			return encio.NewError(encio.ErrMalformed, fmt.Sprintf("pointer reference index is too large (reference index: %v, current references: %v", n, len(e.pointers)), 0)
+		}
+
+		*(*unsafe.Pointer)(ptr) = *(*unsafe.Pointer)(e.pointers[n])
+		return nil
+
+	case *(*unsafe.Pointer)(ptr) == nil:
+		reflect.NewAt(e.ty, ptr).Elem().Set(reflect.New(e.ty.Elem()))
+	}
+
+	eptr := *(*unsafe.Pointer)(ptr)
+	if err := e.elem.Decode(eptr, r); err != nil {
+		return err
+	}
+
+	e.addEncoded(eptr)
+	return nil
 }
 
-// NewMap returns a new map Encodable
-func NewMap(t reflect.Type, config *Config) *Map {
-	return newMap(t, config.genState())
+func (e *Pointer) reset() {
+	e.pointers = e.pointers[:0]
 }
 
-func newMap(t reflect.Type, state *state) *Map {
-	if t.Kind() != reflect.Map {
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a map", t), 0))
+func (e *Pointer) addEncoded(ptr unsafe.Pointer) {
+	// append is too slow
+	l := len(e.pointers)
+	if l < cap(e.pointers) {
+		e.pointers = e.pointers[:l+1]
+		e.pointers[l] = ptr
+		return
+	}
+
+	nb := make([]unsafe.Pointer, l+1, cap(e.pointers)*2)
+	copy(nb, e.pointers)
+	nb[l] = ptr
+	e.pointers = nb
+}
+
+func (e *Pointer) hasEncoded(ptr unsafe.Pointer) (int, bool) { // unsafe.Pointer can never be nil!
+	// Slower for really big things, faster for small things.
+	// atleast 95% of what we're going to encode will have less than 100 pointers,
+	// and I'm not implementing this logic twice and dynamically switching between
+	// a map and slice depending on how many pointers there are.
+	for i := 0; i < len(e.pointers); i++ {
+		if e.pointers[i] == ptr {
+			return i, true
+		}
+	}
+
+	return 0, false
+}
+
+// NewMap returns a new map Encodable.
+func NewMap(ty reflect.Type, config Config, src Source) *Map {
+	if ty.Kind() != reflect.Map {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a map", ty), 0))
 	}
 
 	return &Map{
-		key:     newEncodable(t.Key(), state),
-		val:     newEncodable(t.Elem(), state),
-		keyBuff: reflect.New(t.Key()).Elem(),
-		valBuff: reflect.New(t.Elem()).Elem(),
-		t:       t,
+		key:     src.NewEncodable(ty.Key(), config),
+		val:     src.NewEncodable(ty.Elem(), config),
+		keyBuff: reflect.New(ty.Key()).Elem(),
+		valBuff: reflect.New(ty.Elem()).Elem(),
+		t:       ty,
 	}
 }
 
 // Map is an Encodable for maps
 type Map struct {
-	key, val Encodable
-	encio.Uvarint
+	key, val         Encodable
+	len              encio.Int
 	keyBuff, valBuff reflect.Value
 	t                reflect.Type
 }
@@ -122,10 +198,10 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	v := reflect.NewAt(e.t, ptr).Elem()
 
 	if v.IsNil() {
-		return e.Uvarint.Encode(w, 0)
+		return e.len.EncodeInt32(w, nilPointer)
 	}
 
-	if err := e.Uvarint.Encode(w, uint32(v.Len()+1)); err != nil {
+	if err := e.len.EncodeInt32(w, int32(v.Len())); err != nil {
 		return err
 	}
 
@@ -153,18 +229,17 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 // Decode implements Encodable
 func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	l, err := e.Uvarint.Decode(r)
+	l, err := e.len.DecodeInt32(r)
 	if err != nil {
 		return err
 	}
 
 	m := reflect.NewAt(e.t, ptr).Elem()
 
-	if l == 0 {
+	if l == nilPointer {
 		m.Set(reflect.New(e.t).Elem())
 		return nil
 	}
-	l--
 
 	if uintptr(l)*(e.key.Type().Size()+e.val.Type().Size()) > encio.TooBig {
 		return encio.NewIOError(encio.ErrMalformed, r, fmt.Sprintf("map size of %v is too big", l), 0)
@@ -172,7 +247,7 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	v := reflect.MakeMapWithSize(e.t, int(l))
 
-	for i := uint32(0); i < l; i++ {
+	for i := int32(0); i < l; i++ {
 		nKey := reflect.New(e.key.Type())
 		err := e.key.Decode(unsafe.Pointer(nKey.Pointer()), r)
 		if err != nil {
@@ -194,40 +269,35 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInterface returns a new interface Encodable
-func NewInterface(t reflect.Type, config *Config) Encodable { // TODO; improve performance in some cases by not using a referencer in cases where we can garuntee no self-references.
-	return newInterface(t, config.genState())
-}
-
-func newInterface(t reflect.Type, state *state) (enc Encodable) {
-	if t.Kind() != reflect.Interface {
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an interface", t), 0))
-	}
-	if state.Resolver == nil {
-		panic(encio.NewError(encio.ErrBadConfig, "interface encodables need a resolver to function (config.Resolver is nil)", 0))
+func NewInterface(ty reflect.Type, config Config, src Source) *Interface {
+	if ty.Kind() != reflect.Interface {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an interface", ty), 0))
 	}
 
-	i := &Interface{
-		t:        t,
-		state:    state,
+	e := &Interface{
+		ty:       ty,
+		source:   src,
 		encoders: make(map[reflect.Type]Encodable),
+		typeEnc:  NewType(config),
 		buff:     make([]byte, 1),
 	}
 
-	_, enc = state.referencer(i)
-	return enc
+	return e
 }
 
 // Interface is an Encodable for interfaces
 type Interface struct {
-	t        reflect.Type
-	state    *state
+	ty       reflect.Type
+	source   Source
+	config   Config
 	encoders map[reflect.Type]Encodable
+	typeEnc  *Type
 	buff     []byte
 }
 
 // String implements Encodable
 func (e *Interface) String() string {
-	return fmt.Sprintf("Interface(Type: %v, %v)", e.t.String(), e.state.String())
+	return e.ty.String()
 }
 
 // Size implements Encodable
@@ -237,14 +307,14 @@ func (e *Interface) Size() int {
 
 // Type implements Encodable
 func (e *Interface) Type() reflect.Type {
-	return e.t
+	return e.ty
 }
 
 // Encode implements Encodable
 func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 
-	i := reflect.NewAt(e.t, ptr).Elem()
+	i := reflect.NewAt(e.ty, ptr).Elem()
 	if i.IsNil() {
 		e.buff[0] = 0
 		return encio.Write(e.buff, w)
@@ -260,7 +330,7 @@ func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	elem := reflect.New(elemType).Elem()
 	elem.Set(i.Elem())
 
-	err = e.state.Resolver.Encode(elemType, w)
+	err = e.typeEnc.Encode(unsafe.Pointer(&elemType), w)
 	if err != nil {
 		return err
 	}
@@ -277,11 +347,11 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		return err
 	}
 
-	i := reflect.NewAt(e.t, ptr).Elem()
+	i := reflect.NewAt(e.ty, ptr).Elem()
 
 	if e.buff[0] == 0 {
 		// Nil interface
-		i.Set(reflect.New(e.t).Elem())
+		i.Set(reflect.New(e.ty).Elem())
 		return nil
 	}
 
@@ -290,7 +360,8 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		elemt = i.Elem().Type()
 	}
 
-	rty, err := e.state.Resolver.Decode(elemt, r)
+	var rty reflect.Type
+	err := e.typeEnc.Decode(unsafe.Pointer(&rty), r)
 	if err != nil {
 		return err
 	}
@@ -313,34 +384,40 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		return err
 	}
 
+	if !rty.Implements(e.ty) {
+		// If loose typing is enabled, then there's a possibility the decoded type doesn't implement the interface.
+		return encio.NewError(
+			encio.ErrBadType,
+			fmt.Sprintf("%v was sent to us inside the %v interface, but %v does not implement %v! The types must be different, has a function been added to the interface?", rty, i.Type(), rty, i.Type()),
+			0,
+		)
+	}
+
 	i.Set(elem)
 
 	return nil
 }
 
-func (e *Interface) getEncodable(t reflect.Type) Encodable {
-	if enc, ok := e.encoders[t]; ok {
+func (e *Interface) getEncodable(ty reflect.Type) Encodable {
+	enc, ok := e.encoders[ty]
+	if ok {
 		return enc
 	}
 
-	enc := newEncodable(t, e.state)
-	e.encoders[t] = enc
+	enc = e.source.NewEncodable(ty, e.config)
+	e.encoders[ty] = enc
 	return enc
 }
 
 // NewSlice returns a new slice Encodable
-func NewSlice(t reflect.Type, config *Config) *Slice {
-	return newSlice(t, config.genState())
-}
-
-func newSlice(t reflect.Type, state *state) *Slice {
-	if t.Kind() != reflect.Slice {
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a slice", t), 0))
+func NewSlice(ty reflect.Type, config Config, src Source) *Slice {
+	if ty.Kind() != reflect.Slice {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a slice", ty), 0))
 	}
 
 	return &Slice{
-		t:    t,
-		elem: newEncodable(t.Elem(), state),
+		t:    ty,
+		elem: src.NewEncodable(ty.Elem(), config),
 	}
 }
 
@@ -348,7 +425,7 @@ func newSlice(t reflect.Type, state *state) *Slice {
 type Slice struct {
 	t    reflect.Type
 	elem Encodable
-	len  encio.Uvarint
+	len  encio.Int
 }
 
 // String implements Encodable
@@ -374,11 +451,11 @@ func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 	slice := reflect.NewAt(e.t, ptr).Elem()
 	if slice.IsNil() {
-		return e.len.Encode(w, 0)
+		return e.len.EncodeInt32(w, nilPointer)
 	}
 
 	l := slice.Len()
-	if err := e.len.Encode(w, uint32(l+1)); err != nil {
+	if err := e.len.EncodeInt32(w, int32(l)); err != nil {
 		return err
 	}
 
@@ -398,16 +475,15 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	slice := reflect.NewAt(e.t, ptr).Elem()
 
-	l, err := e.len.Decode(r)
+	l, err := e.len.DecodeInt32(r)
 	if err != nil {
 		return err
 	}
-	if l == 0 {
+	if l == nilPointer {
 		// Nil slice
 		slice.Set(reflect.New(e.t).Elem())
 		return nil
 	}
-	l--
 
 	if uintptr(l)*e.elem.Type().Size() > uintptr(encio.TooBig) {
 		return encio.IOError{
@@ -436,20 +512,15 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewArray returns a new array Encodable
-func NewArray(t reflect.Type, config *Config) *Array {
-	if config != nil {
-		config = config.copy()
+func NewArray(ty reflect.Type, config Config, src Source) *Array {
+	if ty.Kind() != reflect.Array {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an Array", ty), 0))
 	}
-	return newArray(t, config.genState())
-}
 
-func newArray(t reflect.Type, state *state) *Array {
-	if t.Kind() != reflect.Array {
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an Array", t), 0))
-	}
 	return &Array{
-		elem: newEncodable(t.Elem(), state),
-		len:  uintptr(t.Len()),
+		len:  uintptr(ty.Len()),
+		size: ty.Elem().Size(),
+		elem: src.NewEncodable(ty.Elem(), config),
 	}
 }
 
@@ -457,6 +528,7 @@ func newArray(t reflect.Type, state *state) *Array {
 type Array struct {
 	elem Encodable
 	len  uintptr
+	size uintptr
 }
 
 // String implements Encodable
@@ -481,9 +553,8 @@ func (e *Array) Type() reflect.Type {
 // Encode implements Encodable
 func (e *Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
-	esize := e.elem.Type().Size()
 	for i := uintptr(0); i < e.len; i++ {
-		eptr := unsafe.Pointer(uintptr(ptr) + (i * esize))
+		eptr := unsafe.Pointer(uintptr(ptr) + (i * e.size))
 		err := e.elem.Encode(eptr, w)
 		if err != nil {
 			return err
@@ -495,9 +566,8 @@ func (e *Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
 // Decode implments Encodable
 func (e *Array) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	esize := e.elem.Type().Size()
 	for i := uintptr(0); i < e.len; i++ {
-		eptr := unsafe.Pointer(uintptr(ptr) + (i * esize))
+		eptr := unsafe.Pointer(uintptr(ptr) + (i * e.size))
 		err := e.elem.Decode(eptr, r)
 		if err != nil {
 			return err
@@ -506,94 +576,257 @@ func (e *Array) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	return nil
 }
 
+// NewStruct return a new struct Encodable.
+// It creates a StructLoose or StructStrict Encodable depending on if LooseTyping is set in config.
+func NewStruct(ty reflect.Type, config Config, src Source) Encodable {
+	if config&LooseTyping > 0 {
+		return NewStructLoose(ty, config, src)
+	}
+	return NewStructStrict(ty, config, src)
+}
+
 type structMembers []reflect.StructField
 
 func (a structMembers) Len() int           { return len(a) }
 func (a structMembers) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a structMembers) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
-// NewStruct returns a new struct Encodable
-func NewStruct(t reflect.Type, config *Config) *Struct {
-	if config != nil {
-		config = config.copy()
+func structFields(ty reflect.Type, tag string) []reflect.StructField {
+	fields := make(structMembers, 0, ty.NumField())
+	for i := 0; i < ty.NumField(); i++ {
+		field := ty.Field(i)
+		var keep, ignore bool
+		if tagVar, ok := field.Tag.Lookup(tag); ok {
+			keep, err := strconv.ParseBool(tagVar)
+			if err != nil {
+				fmt.Fprintf(encio.Warnings, "%v (decoding struct tag in %v)", err, ty.String())
+			} else {
+				ignore = !keep
+			}
+		}
+
+		if (unicode.IsUpper([]rune(field.Name)[0]) || keep) && !ignore {
+			fields = append(fields, field)
+		}
 	}
-	return newStruct(t, config.genState())
+
+	// Some optimisations and use cases depend on the order of fields remaining the same between systems, so we sort alphabetically.
+	sort.Sort(fields)
+	return fields
 }
 
-func newStruct(t reflect.Type, state *state) *Struct {
-	if t.Kind() != reflect.Struct {
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", t), 0))
+// NewStructLoose returns a new struct Encodable.
+func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
+	if ty.Kind() != reflect.Struct {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", ty), 0))
 	}
 
-	s := &Struct{
-		ty: t,
+	e := &StructLoose{}
+
+	// Take a hash of each field name, generate an ID from it,
+	// and populate fields with the id, Encodable and offset for the field.
+	fields := structFields(ty, StructTag)
+	hasher := crc32.NewIEEE()
+	for _, field := range fields {
+		if err := encio.Write([]byte(field.Name), hasher); err != nil {
+			panic(err) // hasher should never fail to write.
+		}
+
+		f := looseField{
+			offset: field.Offset,
+			id:     hasher.Sum32(),
+			enc:    src.NewEncodable(field.Type, config),
+		}
+
+		hasher.Reset()
+
+		for _, existing := range e.fields {
+			if existing.id == f.id {
+				panic(encio.NewError(
+					encio.ErrHashColission,
+					fmt.Sprintf("struct field %v with type %v has same hash as previous field with type %v in struct %v", field.Name, field.Type.String(), existing.enc.Type(), ty.String()),
+					0,
+				))
+			}
+		}
+
+		e.fields = append(e.fields, &f)
 	}
-	n := t.NumField()
-	sms := make(structMembers, 0, n)
-	for i := 0; i < n; i++ {
-		f := t.Field(i)
-		if c, _ := utf8.DecodeRune([]byte(f.Name)); unicode.IsUpper(c) || state.IncludeUnexported {
-			sms = append(sms, f)
+
+	return e
+}
+
+// StructLoose is an Encodable for structs.
+// It encodes fields by a generated ID, and maps fields with the same name.
+// Exported fields can be ignored using the tag `encs:"false"`, and
+// unexported fields can be included with the tag `encs:"true"`.
+type StructLoose struct {
+	ty      reflect.Type
+	fields  []*looseField
+	uintEnc encio.Uint
+}
+
+type looseField struct {
+	id     uint32
+	offset uintptr
+	enc    Encodable
+}
+
+// Size implements Encodable.
+func (e *StructLoose) Size() int {
+	size := len(e.fields) * 4
+	for _, field := range e.fields {
+		fsize := field.enc.Size()
+		if fsize < 0 {
+			return -1 << 31
+		}
+		size += fsize
+	}
+	return size
+}
+
+// String implements Encodable
+func (e *StructLoose) String() string {
+	str := "Struct(" + e.ty.String() + "){"
+
+	if len(e.fields) == 0 {
+		return str + "}"
+	}
+
+	str += e.fields[0].enc.String()
+	for _, field := range e.fields {
+		str += ", " + field.enc.String()
+	}
+
+	return str + "}"
+}
+
+// Type implements Encodable.
+func (e *StructLoose) Type() reflect.Type { return e.ty }
+
+// Encode implements Encodable.
+func (e *StructLoose) Encode(ptr unsafe.Pointer, w io.Writer) error {
+	if err := e.uintEnc.EncodeUint32(w, uint32(len(e.fields))); err != nil {
+		return err
+	}
+
+	for _, field := range e.fields {
+		if err := e.uintEnc.EncodeUint32(w, field.id); err != nil {
+			return err
+		}
+
+		if err := field.enc.Encode(unsafe.Pointer(uintptr(ptr)+field.offset), w); err != nil {
+			return err
 		}
 	}
 
-	// TODO implement Config.StructTag
+	return nil
+}
 
-	// struct members are sorted alphabetically. Since there is no coordination of member data,
-	// decoders must decode in the same order the encoders wrote.
-	// Alphabetically is a pretty platform-independent way of sorting the fields.
-	sort.Sort(sms)
+// Decode implements Encodable.
+// Fields that are not received are set to their zero value.
+// Fields sent that do not exist locally are ignored.
+func (e *StructLoose) Decode(ptr unsafe.Pointer, r io.Reader) error {
+	l, err := e.uintEnc.DecodeUint32(r)
+	if err != nil {
+		return err
+	}
+	if uintptr(l)*4 > encio.TooBig { // Don't include size of encoded struct member, way too much work here.
+		return encio.NewError(encio.ErrMalformed, fmt.Sprintf("%v struct fields is too many to decode", l), 0)
+	}
 
-	s.members = make([]structMember, len(sms))
-	for i := range sms {
-		s.members[i] = structMember{
-			Encodable: newEncodable(sms[i].Type, state),
-			offset:    sms[i].Offset,
+	var i int
+	for parsed := uint32(0); parsed < l; parsed++ {
+		id, err := e.uintEnc.DecodeUint32(r)
+		if err != nil {
+			return err
 		}
+
+		// Move next field to the current index. At the end we have all unfetched fields
+		// at the end of the slice above index.
+		for j := i; j < len(e.fields); j++ {
+			if e.fields[j].id == id {
+				tmp := e.fields[i]
+				e.fields[i] = e.fields[j]
+				e.fields[j] = tmp
+				goto foundField
+			}
+		}
+		// local field not found
+		continue
+
+	foundField:
+
+		if err := e.fields[i].enc.Decode(unsafe.Pointer(uintptr(ptr)+e.fields[i].offset), r); err != nil {
+			return err
+		}
+
+		i++
+	}
+
+	// Set undecoded fields to zero value.
+	for _, field := range e.fields[i:] {
+		// what a mouthful
+		reflect.NewAt(field.enc.Type(), unsafe.Pointer(uintptr(ptr)+field.offset)).Elem().Set(reflect.New(field.enc.Type()).Elem())
+	}
+
+	return nil
+}
+
+// NewStructStrict returns a new struct Encodable.
+func NewStructStrict(ty reflect.Type, config Config, src Source) *StructStrict {
+	if ty.Kind() != reflect.Struct {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", ty), 0))
+	}
+
+	fields := structFields(ty, StructTag)
+	s := &StructStrict{
+		ty:     ty,
+		fields: make([]strictField, len(fields)),
+	}
+
+	for i := range fields {
+		s.fields[i].offset = fields[i].Offset
+		s.fields[i].enc = src.NewEncodable(fields[i].Type, config)
 	}
 
 	return s
 }
 
-// Struct is an Encodable for structs
-type Struct struct {
-	ty      reflect.Type
-	members []structMember
+// StructStrict is an Encodable for structs.
+// It encodes fields in a determenistic order.
+// Exported fields can be ignored using the tag `encs:"false"`, and
+// unexported fields can be included with the tag `encs:"true"`.
+type StructStrict struct {
+	ty     reflect.Type
+	fields []strictField
 }
 
-type structMember struct {
-	Encodable
+type strictField struct {
 	offset uintptr
-}
-
-func (sm structMember) encodeMember(structPtr unsafe.Pointer, w io.Writer) error {
-	return sm.Encode(unsafe.Pointer(uintptr(structPtr)+sm.offset), w)
-}
-
-func (sm structMember) decodeMember(structPtr unsafe.Pointer, r io.Reader) error {
-	return sm.Decode(unsafe.Pointer(uintptr(structPtr)+sm.offset), r)
+	enc    Encodable
 }
 
 // String implements Encodable
-func (e *Struct) String() string {
+func (e *StructStrict) String() string {
 	str := "Struct(" + e.ty.String() + "){"
 
-	if len(e.members) == 0 {
+	if len(e.fields) == 0 {
 		return str + "}"
 	}
 
-	str += e.members[0].String()
-	for i := 1; i < len(e.members); i++ {
-		str += ", " + e.members[i].String()
+	str += e.fields[0].enc.String()
+	for i := 1; i < len(e.fields); i++ {
+		str += ", " + e.fields[i].enc.String()
 	}
 
 	return str + "}"
 }
 
 // Size implements Sized
-func (e Struct) Size() (size int) {
-	for _, member := range e.members {
-		msize := member.Size()
+func (e StructStrict) Size() (size int) {
+	for _, member := range e.fields {
+		msize := member.enc.Size()
 		if msize < 0 {
 			return -1 << 31
 		}
@@ -603,16 +836,15 @@ func (e Struct) Size() (size int) {
 }
 
 // Type implements Encodable
-func (e Struct) Type() reflect.Type {
+func (e StructStrict) Type() reflect.Type {
 	return e.ty
 }
 
 // Encode implements Encodable
-func (e Struct) Encode(ptr unsafe.Pointer, w io.Writer) error {
+func (e StructStrict) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
-	for _, m := range e.members {
-		err := m.encodeMember(ptr, w)
-		if err != nil {
+	for _, m := range e.fields {
+		if err := m.enc.Encode(unsafe.Pointer(uintptr(ptr)+m.offset), w); err != nil {
 			return err
 		}
 	}
@@ -620,11 +852,12 @@ func (e Struct) Encode(ptr unsafe.Pointer, w io.Writer) error {
 }
 
 // Decode implements Encodable
-func (e Struct) Decode(ptr unsafe.Pointer, r io.Reader) error {
+func (e StructStrict) Decode(ptr unsafe.Pointer, r io.Reader) error {
+	// I really don't like doubling up on the Struct encodable, but wow,
+	// what a difference it makes.
 	checkPtr(ptr)
-	for _, m := range e.members {
-		err := m.decodeMember(ptr, r)
-		if err != nil {
+	for _, m := range e.fields {
+		if err := m.enc.Decode(unsafe.Pointer(uintptr(ptr)+m.offset), r); err != nil {
 			return err
 		}
 	}

@@ -34,7 +34,7 @@ func Example() {
 		Birthday: birthday,
 	}
 
-	enc := encs.NewEncoder(buff, nil)
+	enc := encs.NewEncoder(buff)
 
 	err = enc.Encode(&example)
 	if err != nil {
@@ -42,7 +42,7 @@ func Example() {
 		return
 	}
 
-	dec := encs.NewDecoder(buff, nil)
+	dec := encs.NewDecoder(buff)
 
 	var decodedExample ExampleStruct
 	err = dec.Decode(&decodedExample)

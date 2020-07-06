@@ -19,7 +19,7 @@ func NewString() *String {
 
 // String is an Encodable for strings
 type String struct {
-	len encio.Uvarint
+	len encio.Uint
 
 	// buff's backing array is never to be touched unless explicitly set beforehand.
 	// It can point to read-only memopry from the previous operation.
@@ -46,7 +46,7 @@ func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	str := (*string)(ptr)
 	l := uint32(len(*str))
-	if err := e.len.Encode(w, l); err != nil || l == 0 {
+	if err := e.len.EncodeUint32(w, l); err != nil || l == 0 {
 		return err
 	}
 
@@ -57,7 +57,7 @@ func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 
-	l, err := e.len.Decode(r)
+	l, err := e.len.DecodeUint32(r)
 	if err != nil {
 		return err
 	}
@@ -166,10 +166,10 @@ type binaryMarshaler interface {
 }
 
 func implementsBinaryMarshaler(t reflect.Type) error {
-	if !t.Implements(binaryMarshalerIface) {
+	if !t.Implements(binaryMarshalerType) {
 		return encio.NewError(encio.ErrBadType, fmt.Sprintf("%v does not implement encoding.BinaryMarshaler", t), 1)
 	}
-	if !t.Implements(binaryUnmarshalerIface) {
+	if !t.Implements(binaryUnmarshalerType) {
 		return encio.NewError(encio.ErrBadType, fmt.Sprintf("%v does not implement encoding.BinaryUnmarshaler", t), 1)
 	}
 	return nil

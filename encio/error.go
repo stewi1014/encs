@@ -3,6 +3,7 @@ package encio
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 )
 
@@ -38,6 +39,11 @@ var (
 	// ErrBadConfig is returned when the config cannot be used to encode the given encodable.
 	// i.e. Config.Resolver = nil when creating Interface Encodables.
 	ErrBadConfig = errors.New("bad config")
+
+	// ErrHashColission is returned when two hashes collide.
+	// If this is returned (or panic'd), investigation into encs is required;
+	// this should never occur, and is here for completeness.
+	ErrHashColission = errors.New("hash colission")
 )
 
 // NewIOError returns an IOError wrapping err with the given message.
@@ -158,4 +164,12 @@ func GetCaller(skip int) string {
 	frames := runtime.CallersFrames(pcs)
 	frame, _ := frames.Next()
 	return frame.Function
+}
+
+// GetFunctionName returns the declaration name of a function.
+func GetFunctionName(v reflect.Value) string {
+	if v.Kind() != reflect.Func {
+		return fmt.Sprintf("%T is not a function", v)
+	}
+	return runtime.FuncForPC(v.Pointer()).Name()
 }

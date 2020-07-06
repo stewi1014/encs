@@ -32,7 +32,7 @@ func TestPointer(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			e := encodable.NewPointer(reflect.TypeOf(tC.encode).Elem(), nil)
+			e := encodable.NewPointer(reflect.TypeOf(tC.encode).Elem(), 0, &encodable.DefaultSource{})
 			testGeneric(tC.encode, e, t)
 		})
 	}
@@ -70,7 +70,7 @@ func TestMap(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			e := encodable.NewMap(reflect.TypeOf(tC.encode).Elem(), nil)
+			e := encodable.NewMap(reflect.TypeOf(tC.encode).Elem(), 0, &encodable.DefaultSource{})
 			testGeneric(tC.encode, e, t)
 		})
 	}
@@ -98,9 +98,7 @@ func TestInterface(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			e := encodable.NewInterface(reflect.TypeOf(tC.encode).Elem(), &encodable.Config{
-				Resolver: encodable.NewRegisterResolver(nil),
-			})
+			e := encodable.NewInterface(reflect.TypeOf(tC.encode).Elem(), 0, &encodable.DefaultSource{})
 			testGeneric(tC.encode, e, t)
 		})
 	}
@@ -147,7 +145,7 @@ func TestSlice(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			e := encodable.NewSlice(reflect.TypeOf(tC.encode).Elem(), nil)
+			e := encodable.NewSlice(reflect.TypeOf(tC.encode).Elem(), 0, &encodable.DefaultSource{})
 			testGeneric(tC.encode, e, t)
 		})
 	}
@@ -187,7 +185,7 @@ func TestArray(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			e := encodable.NewArray(reflect.TypeOf(tC.encode).Elem(), nil)
+			e := encodable.NewArray(reflect.TypeOf(tC.encode).Elem(), 0, &encodable.DefaultSource{})
 			testGeneric(tC.encode, e, t)
 		})
 	}
@@ -210,15 +208,10 @@ type TestStruct2 struct {
 func TestStruct(t *testing.T) {
 	testCases := []struct {
 		desc   string
-		config *encodable.Config
 		encode interface{}
 	}{
 		{
 			desc: "TestStruct1",
-			config: &encodable.Config{
-				Resolver:          nil,
-				IncludeUnexported: false,
-			},
 			encode: &TestStruct1{
 				Exported1: 6,
 				Exported2: "Hello world!",
@@ -226,10 +219,6 @@ func TestStruct(t *testing.T) {
 		},
 		{
 			desc: "TestStruct2",
-			config: &encodable.Config{
-				Resolver:          nil,
-				IncludeUnexported: false,
-			},
 			encode: &TestStruct2{
 				Name:     "John",
 				BirthDay: time.Date(2019, 10, 14, 5, 50, 20, 0, time.UTC),
@@ -242,14 +231,14 @@ func TestStruct(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			e := encodable.New(reflect.TypeOf(tC.encode).Elem(), tC.config)
+			e := encodable.New(reflect.TypeOf(tC.encode).Elem(), 0)
 
 			testGeneric(tC.encode, e, t)
 		})
 	}
 }
 
-func BenchmarkStructEncode(b *testing.B) {
+func BenchmarkStructStrictEncode(b *testing.B) {
 	benchStruct := TestStruct2{
 		Name:     "9b899bec35bc6bb8",
 		BirthDay: time.Date(2019, 10, 19, 12, 28, 39, 731486213, time.UTC),
@@ -259,7 +248,7 @@ func BenchmarkStructEncode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	enc := encodable.NewStruct(reflect.TypeOf(benchStruct), nil)
+	enc := encodable.NewStructStrict(reflect.TypeOf(benchStruct), 0, &encodable.DefaultSource{})
 	for i := 0; i < b.N; i++ {
 		err := enc.Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
 		if err != nil {
@@ -268,7 +257,7 @@ func BenchmarkStructEncode(b *testing.B) {
 	}
 }
 
-func BenchmarkStructDecode(b *testing.B) {
+func BenchmarkStructStrictDecode(b *testing.B) {
 	benchStruct := TestStruct2{
 		Name:     "9b899bec35bc6bb8",
 		BirthDay: time.Date(2019, 10, 19, 12, 28, 39, 731486213, time.UTC),
@@ -278,7 +267,7 @@ func BenchmarkStructDecode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	enc := encodable.NewStruct(reflect.TypeOf(benchStruct), nil)
+	enc := encodable.NewStructStrict(reflect.TypeOf(benchStruct), 0, &encodable.DefaultSource{})
 	buff := new(buffer)
 	if err := enc.Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
 		b.Fatal(err)

@@ -1,2 +1,5 @@
 # Go test coverage
 cover.out
+
+# VSCode
+.vscode

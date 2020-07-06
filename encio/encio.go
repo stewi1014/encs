@@ -76,7 +76,7 @@ func Write(buff []byte, w io.Writer) error {
 
 	end := n
 	for end < len(buff) && err == nil && n > 0 {
-		fmt.Fprintf(Warnings, "encs: %T is a bad io.Writer implementation. It wrote short (given %v bytes but reported only %v written) yet returned no error. Will call it again...", w, len(buff)-(end-n), n)
+		fmt.Fprintf(Warnings, "encs: %T is a bad io.Writer implementation. It wrote short (given %v bytes but reported only %v written) yet returned no error. Will call it again...\n", w, len(buff)-(end-n), n)
 		n, err = w.Write(buff[end:])
 		end += n
 	}

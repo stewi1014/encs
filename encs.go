@@ -14,3 +14,20 @@
 //
 // encs/encio provides io and error types for encoding and related tasks
 package encs
+
+import (
+	"reflect"
+
+	"github.com/stewi1014/encs/encodable"
+)
+
+// Register registers a type to be encoded.
+func Register(types ...interface{}) error {
+	rtypes := make([]reflect.Type, len(types))
+
+	for i := range types {
+		rtypes[i] = reflect.TypeOf(types)
+	}
+
+	return encodable.Register(rtypes...)
+}

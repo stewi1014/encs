@@ -4,27 +4,28 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sync"
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
 	"github.com/stewi1014/encs/encodable"
 )
 
-func NewDecoder(r io.Reader, config *Config) *Decoder {
-	config = config.copyAndFill()
+func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
-		r:        r,
-		resolver: config.Resolver,
-		source: encodable.NewSource(&encodable.Config{
-			Resolver: config.Resolver,
-		}, encodable.New),
+		r:       r,
+		typeEnc: encodable.NewType(0),
+		source:  &encodable.DefaultSource{},
+		encs:    make(map[reflect.Type]encodable.Encodable),
 	}
 }
 
 type Decoder struct {
-	r        io.Reader
-	resolver encodable.Resolver
-	source   *encodable.Source
+	r       io.Reader
+	mutex   sync.Mutex
+	typeEnc *encodable.Type
+	source  encodable.Source
+	encs    map[reflect.Type]encodable.Encodable
 }
 
 func (d *Decoder) Decode(v interface{}) error {
@@ -45,7 +46,11 @@ func (d *Decoder) Decode(v interface{}) error {
 		return encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not mutable", val.Type()), 0)
 	}
 
-	ty, err := d.resolver.Decode(val.Type(), d.r)
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	ty := val.Type()
+	err := d.typeEnc.Decode(unsafe.Pointer(&ty), d.r)
 	if err != nil {
 		return err
 	}
@@ -54,5 +59,11 @@ func (d *Decoder) Decode(v interface{}) error {
 		return encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot set %v to received type %v", val.Type(), ty), 0)
 	}
 
-	return d.source.GetEncodable(ty).Decode(unsafe.Pointer(val.UnsafeAddr()), d.r)
+	enc, ok := d.encs[ty]
+	if !ok {
+		enc = d.source.NewEncodable(ty, 0)
+		d.encs[ty] = enc
+	}
+
+	return enc.Decode(unsafe.Pointer(val.UnsafeAddr()), d.r)
 }

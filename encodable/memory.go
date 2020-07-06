@@ -18,7 +18,7 @@ func NewMemory(size int) *Memory {
 	}
 }
 
-// Memory is an encoder that throws type-safety out the window (as if the rest of this library wasn't enough).
+// Memory is an encoder that throws type-safety out the window.
 // Initialised with NewMemory(size), it reads/writes directly to the memory at the given address with no internal buffering.
 // Extreme care must be taken, errors from Memory can be difficult to read, let alone helpful in debugging, and are often in the form of panics,
 // or worse still, the silent destruction of the universe.
@@ -33,7 +33,7 @@ func (e *Memory) String() string {
 
 // Type implements Encodable
 func (e *Memory) Type() reflect.Type {
-	return invalidType
+	return nil
 }
 
 // Size implemenets Encodable

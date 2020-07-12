@@ -12,7 +12,16 @@ import (
 
 var seen = make(map[string]encodable.Encodable)
 
-func testGeneric(v interface{}, e encodable.Encodable, t *testing.T) {
+func isNil(ty reflect.Value) bool {
+	switch ty.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Slice, reflect.Ptr, reflect.Map:
+		return ty.IsNil()
+	default:
+		return false
+	}
+}
+
+func testGeneric(v, want interface{}, e encodable.Encodable, t *testing.T) {
 	name := e.String()
 	if previous, ok := seen[name]; ok {
 		if previous.Type() != e.Type() {
@@ -52,8 +61,12 @@ func testGeneric(v interface{}, e encodable.Encodable, t *testing.T) {
 		t.Error(err)
 	}
 
-	if !reflect.DeepEqual(val.Interface(), decodedValue.Interface()) {
-		t.Errorf("%v (%v, nil: %v) and %v (%v, nil: %v) are not equal", val.Type(), val, val.IsNil(), decodedValue.Type(), decodedValue, decodedValue.IsNil())
+	w := reflect.ValueOf(want).Elem()
+
+	if !reflect.DeepEqual(w.Interface(), decodedValue.Interface()) {
+		wNil := isNil(w)
+		dNil := isNil(decodedValue)
+		t.Errorf("%v (%v, nil: %v) and %v (%v, nil: %v) are not equal", w.Type(), w, wNil, decodedValue.Type(), decodedValue, dNil)
 	}
 
 	if buff.Len() > 0 {

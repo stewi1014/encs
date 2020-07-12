@@ -26,11 +26,6 @@ type String struct {
 	buff []byte
 }
 
-// String implements Encodable
-func (e *String) String() string {
-	return "String"
-}
-
 // Size implemenets Encodable
 func (e *String) Size() int {
 	return -1 << 31
@@ -89,11 +84,6 @@ func NewBool() Encodable {
 // Bool is an Encodable for bools
 type Bool struct {
 	buff []byte
-}
-
-// String implements Encodable
-func (e *Bool) String() string {
-	return "Bool"
 }
 
 // Size implements Encodable
@@ -181,11 +171,6 @@ func (e *BinaryMarshaler) setIface(ptr unsafe.Pointer) {
 		return
 	}
 	e.i = reflect.NewAt(e.t, ptr).Elem().Interface().(binaryMarshaler)
-}
-
-// String implements Encodable
-func (e *BinaryMarshaler) String() string {
-	return fmt.Sprintf("BinaryMarshaler(%v)", e.t)
 }
 
 // Type implements Encodable

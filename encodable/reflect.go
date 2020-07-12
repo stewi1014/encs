@@ -251,9 +251,6 @@ type Type struct {
 	idEnc    encio.UUID
 }
 
-// String implements fmt.Stringer.
-func (e *Type) String() string { return "reflect.Type" }
-
 // Size implements Encodable.
 func (e *Type) Size() int { return 16 }
 
@@ -335,8 +332,6 @@ type Value struct {
 	config  Config
 	src     *CachingSource
 }
-
-func (e *Value) String() string { return "reflect.Value" }
 
 // Size implements Encodable.
 func (e *Value) Size() int { return -1 << 31 }

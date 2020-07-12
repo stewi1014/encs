@@ -22,11 +22,6 @@ type Float32 struct {
 	buff []byte
 }
 
-// String implements Encodable
-func (e *Float32) String() string {
-	return "Float32"
-}
-
 // Size implemenets Sized
 func (e *Float32) Size() int {
 	return 4
@@ -74,11 +69,6 @@ func NewFloat64() *Float64 {
 // Float64 is an Encodable for float64s
 type Float64 struct {
 	buff []byte
-}
-
-// String implements Encodable
-func (e *Float64) String() string {
-	return "Float64"
 }
 
 // Size implemenets Sized
@@ -136,11 +126,6 @@ func NewComplex64() *Complex64 {
 // Complex64 is an Encodable for complex64s
 type Complex64 struct {
 	buff []byte
-}
-
-// String implements Encodable
-func (e *Complex64) String() string {
-	return "Complex64"
 }
 
 // Size implemenets Sized
@@ -202,11 +187,6 @@ func NewComplex128() *Complex128 {
 // Complex128 is an Encodable for complex128s
 type Complex128 struct {
 	buff []byte
-}
-
-// String implements Encodable
-func (e *Complex128) String() string {
-	return "Complex128"
 }
 
 // Size implemenets Sized

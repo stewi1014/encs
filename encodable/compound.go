@@ -39,9 +39,6 @@ type Pointer struct {
 	intEnc   encio.Int
 }
 
-// String implements Encodable.
-func (e *Pointer) String() string { return "*" + e.elem.String() }
-
 // Size implements Sized.
 func (e *Pointer) Size() int {
 	return e.elem.Size() + 4
@@ -177,11 +174,6 @@ type Map struct {
 	t                reflect.Type
 }
 
-// String implements Encodable
-func (e *Map) String() string {
-	return fmt.Sprintf("Map[%v]{%v}", e.key, e.val)
-}
-
 // Size implements Encodable
 func (e *Map) Size() int {
 	return -1 << 31
@@ -293,11 +285,6 @@ type Interface struct {
 	encoders map[reflect.Type]Encodable
 	typeEnc  *Type
 	buff     []byte
-}
-
-// String implements Encodable
-func (e *Interface) String() string {
-	return e.ty.String()
 }
 
 // Size implements Encodable
@@ -428,11 +415,6 @@ type Slice struct {
 	len  encio.Int
 }
 
-// String implements Encodable
-func (e *Slice) String() string {
-	return fmt.Sprintf("[]%v", e.elem)
-}
-
 // Size implemenets Encodable
 func (e *Slice) Size() int {
 	return -1 << 31
@@ -529,11 +511,6 @@ type Array struct {
 	elem Encodable
 	len  uintptr
 	size uintptr
-}
-
-// String implements Encodable
-func (e *Array) String() string {
-	return fmt.Sprintf("Array[%v]{%v}", e.len, e.elem)
 }
 
 // Size implements Encodable
@@ -698,22 +675,6 @@ func (e *StructLoose) Size() int {
 	return size
 }
 
-// String implements Encodable
-func (e *StructLoose) String() string {
-	str := "Struct(" + e.ty.String() + "){"
-
-	if len(e.fields) == 0 {
-		return str + "}"
-	}
-
-	str += e.fields[0].enc.String()
-	for _, field := range e.fields {
-		str += ", " + field.enc.String()
-	}
-
-	return str + "}"
-}
-
 // Type implements Encodable.
 func (e *StructLoose) Type() reflect.Type { return e.ty }
 
@@ -818,22 +779,6 @@ type StructStrict struct {
 type strictField struct {
 	offset uintptr
 	enc    Encodable
-}
-
-// String implements Encodable
-func (e *StructStrict) String() string {
-	str := "Struct(" + e.ty.String() + "){"
-
-	if len(e.fields) == 0 {
-		return str + "}"
-	}
-
-	str += e.fields[0].enc.String()
-	for i := 1; i < len(e.fields); i++ {
-		str += ", " + e.fields[i].enc.String()
-	}
-
-	return str + "}"
 }
 
 // Size implements Sized

@@ -200,10 +200,6 @@ func (e *Recursive) Size() int {
 	return -1 << 31
 }
 
-func (e *Recursive) String() string {
-	return "recursive"
-}
-
 // Type implements Encodable.
 func (e *Recursive) Type() reflect.Type {
 	enc := e.Pop()

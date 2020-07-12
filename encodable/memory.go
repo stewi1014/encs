@@ -26,11 +26,6 @@ type Memory struct {
 	buff reflect.SliceHeader
 }
 
-// String implements Encodable
-func (e *Memory) String() string {
-	return "Memory"
-}
-
 // Type implements Encodable
 func (e *Memory) Type() reflect.Type {
 	return nil

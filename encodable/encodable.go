@@ -19,7 +19,6 @@ package encodable
 // TODO: Stress test recursive types and values.
 
 import (
-	"fmt"
 	"io"
 	"reflect"
 	"unsafe"
@@ -74,13 +73,6 @@ type Encodable interface {
 	// Decode will only read what Encode wrote; no extra data is read.
 	// It panics if ptr is nil.
 	Decode(ptr unsafe.Pointer, r io.Reader) error
-
-	// String returns a string showing the Encodable's structure.
-	// () shows a little information about the encoder, such as the type it encodes or relevant settings.
-	// {} denotes sub-Encoders; encoders that encode parts of a larger Encodable.
-	// Comparing results from String is an effecive way of equality checking.
-	// It is thread safe.
-	fmt.Stringer // String() string
 }
 
 // New returns a new Encodable for encoding the type t.

@@ -10,8 +10,6 @@ import (
 	"github.com/stewi1014/encs/encodable"
 )
 
-var seen = make(map[string]encodable.Encodable)
-
 func isNil(ty reflect.Value) bool {
 	switch ty.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Slice, reflect.Ptr, reflect.Map:
@@ -22,18 +20,6 @@ func isNil(ty reflect.Value) bool {
 }
 
 func testGeneric(v, want interface{}, e encodable.Encodable, t *testing.T) {
-	name := e.String()
-	if previous, ok := seen[name]; ok {
-		if previous.Type() != e.Type() {
-			t.Errorf("Two Encodables return the name %v, but one encodes %v and the other encodes %v", name, e.Type(), previous.Type())
-		}
-		if previous.Size() != e.Size() {
-			t.Errorf("Two Encodables return the name %v, but one has Size() %v and the other is %v", name, e.Size(), previous.Size())
-		}
-	} else {
-		seen[name] = e
-	}
-
 	val := reflect.ValueOf(v).Elem()
 	ptr := unsafe.Pointer(val.UnsafeAddr())
 

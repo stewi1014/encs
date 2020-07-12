@@ -591,23 +591,34 @@ func (a structMembers) Len() int           { return len(a) }
 func (a structMembers) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a structMembers) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
-func structFields(ty reflect.Type, tag string) []reflect.StructField {
+func structFields(ty reflect.Type, structTag string) []reflect.StructField {
 	fields := make(structMembers, 0, ty.NumField())
 	for i := 0; i < ty.NumField(); i++ {
 		field := ty.Field(i)
-		var keep, ignore bool
-		if tagVar, ok := field.Tag.Lookup(tag); ok {
-			keep, err := strconv.ParseBool(tagVar)
+
+		tagStr, tagged := field.Tag.Lookup(structTag)
+		var tag bool
+		if tagged {
+			parsed, err := strconv.ParseBool(tagStr)
 			if err != nil {
 				fmt.Fprintf(encio.Warnings, "%v (decoding struct tag in %v)", err, ty.String())
+				tagged = false
 			} else {
-				ignore = !keep
+				tag = parsed
 			}
 		}
 
-		if (unicode.IsUpper([]rune(field.Name)[0]) || keep) && !ignore {
-			fields = append(fields, field)
+		if tagged && !tag {
+			// Tag says skip
+			continue
 		}
+
+		if !tagged && !unicode.IsUpper([]rune(field.Name)[0]) {
+			// Not tagged and not exported
+			continue
+		}
+
+		fields = append(fields, field)
 	}
 
 	// Some optimisations and use cases depend on the order of fields remaining the same between systems, so we sort alphabetically.
@@ -621,7 +632,9 @@ func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", ty), 0))
 	}
 
-	e := &StructLoose{}
+	e := &StructLoose{
+		ty: ty,
+	}
 
 	// Take a hash of each field name, generate an ID from it,
 	// and populate fields with the id, Encodable and offset for the field.

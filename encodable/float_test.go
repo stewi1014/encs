@@ -1,10 +1,8 @@
 package encodable_test
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
-	"unsafe"
 
 	"github.com/stewi1014/encs/encodable"
 )
@@ -15,28 +13,10 @@ func TestFloat32(t *testing.T) {
 	}
 
 	enc := encodable.NewFloat32()
-	buff := new(bytes.Buffer)
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			err := enc.Encode(unsafe.Pointer(&tC), buff)
-			if err != nil {
-				t.Fatalf("Encode error: %v", err)
-			}
-
-			var d float32
-			err = enc.Decode(unsafe.Pointer(&d), buff)
-			if err != nil {
-				t.Fatalf("Decode error: %v", err)
-			}
-
-			if d != tC {
-				t.Fatalf("Encoded %v, but got %v", tC, d)
-			}
-
-			if buff.Len() != 0 {
-				t.Fatalf("Data remaining in buffer: %v", buff.Bytes())
-			}
+			testGeneric(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -50,7 +30,7 @@ func TestFloat64(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, enc, t)
+			testGeneric(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -64,7 +44,7 @@ func TestComplex64(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, enc, t)
+			testGeneric(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -78,7 +58,7 @@ func TestComplex128(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, enc, t)
+			testGeneric(&tC, &tC, enc, t)
 		})
 	}
 }

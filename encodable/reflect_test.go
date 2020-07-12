@@ -88,7 +88,7 @@ var typeSink reflect.Type
 func BenchmarkType_Decode(b *testing.B) {
 	types := testTypes()
 	encodeNum := len(types) * 10
-	buff := new(bytes.Buffer)
+	buff := new(buffer)
 
 	// populate buffer
 	e := encodable.NewType(0)
@@ -98,8 +98,6 @@ func BenchmarkType_Decode(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-
-	bs := buff.Bytes()
 
 	b.ResetTimer()
 	var j int
@@ -111,7 +109,7 @@ func BenchmarkType_Decode(b *testing.B) {
 		j++
 		if j >= encodeNum {
 			j = 0
-			buff = bytes.NewBuffer(bs)
+			buff.Reset()
 		}
 	}
 }
@@ -162,7 +160,7 @@ var valueSink reflect.Value
 func BenchmarkValue_Decode(b *testing.B) {
 	values := testValues()
 	encodeNum := len(values) * 10
-	buff := new(bytes.Buffer)
+	buff := new(buffer)
 
 	// populate buffer
 	e := encodable.NewValue(0, &encodable.DefaultSource{})
@@ -172,8 +170,6 @@ func BenchmarkValue_Decode(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-
-	bs := buff.Bytes()
 
 	b.ResetTimer()
 	var j int
@@ -185,7 +181,7 @@ func BenchmarkValue_Decode(b *testing.B) {
 		j++
 		if j >= encodeNum {
 			j = 0
-			buff = bytes.NewBuffer(bs)
+			buff.Reset()
 		}
 	}
 }

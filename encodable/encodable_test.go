@@ -23,7 +23,7 @@ func permutate(buff *[]encodable.Config, options []encodable.Config, c encodable
 
 var configPermutations = func() []encodable.Config {
 	options := []encodable.Config{
-		//encodable.LooseTyping,
+		encodable.LooseTyping,
 	}
 
 	var buff []encodable.Config
@@ -185,7 +185,7 @@ type buffer struct {
 	off  int
 }
 
-// reset resets reading
+// Reset resets reading, allowing the same buffer to be read again.
 func (b *buffer) Reset() {
 	b.off = 0
 }

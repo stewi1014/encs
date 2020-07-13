@@ -61,7 +61,7 @@ const (
 // The pointers passed to Encode and Decode must be pointers to an allocated instance of the Encodable's type, accessible by Type().
 // Pointer encodables do not follow different semantics, and so must be given a non-nil pointer to the pointer they're encoding.
 // If the underlying pointer is nil, this is handled as it should be.
-// See https://golang.org/pkg/unsafe/#Pointer; "Note that the pointer must point into an allocated object, so it may not be nil."
+// See https://golang.org/pkg/unsafe/#Pointer; "Note that the pointer must point into an allocated object, so it may not be nil".
 type Encodable interface {
 	// Type returns the type that the Encodable encodes.
 	// It is thread safe.

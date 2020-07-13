@@ -9,7 +9,6 @@ import (
 
 // Error handling in encs is designed to provide an easy way to distinguish io errors and bad data from internal encoding errors,
 // and to reuse a small set of common error kinds for as many errors as possible, with extra information wrapped as applicable.
-// Panics are only used when there is a clear misuse of the library; programmer error.
 // To this end, all error cases are grouped into two error wrappers; IOError and Error, the idea being that
 // IOError indicates a bad io.Reader/io.Writer, and the caller should stop using it, while
 // Error indicates a caller should stop using an Encodable or use it in a different way.
@@ -24,6 +23,8 @@ import (
 //	// handle io error
 // }
 // ```
+//
+// Panics are only used when there is a clear misuse of the library; programmer error.
 var (
 	// ErrMalformed is returned when the read data is impossible to decode.
 	ErrMalformed = errors.New("malformed")
@@ -82,7 +83,7 @@ type IOError struct {
 	Location string
 }
 
-// Error implements error
+// Error implements error.
 func (e IOError) Error() string {
 	str := fmt.Sprintf("\"%v\"", e.Err.Error())
 
@@ -101,7 +102,7 @@ func (e IOError) Error() string {
 	return str
 }
 
-// Unwrap implements errors' Unwrap()
+// Unwrap implements errors' Unwrap().
 func (e IOError) Unwrap() error {
 	return e.Err
 }
@@ -132,7 +133,7 @@ type Error struct {
 	Location string
 }
 
-// Error implements error
+// Error implements error.
 func (e Error) Error() string {
 	str := fmt.Sprintf("\"%v\"", e.Err.Error())
 
@@ -147,7 +148,7 @@ func (e Error) Error() string {
 	return str
 }
 
-// Unwrap implements errors's Unwrap()
+// Unwrap implements errors's Unwrap().
 func (e Error) Unwrap() error {
 	return e.Err
 }

@@ -93,7 +93,7 @@ func GetID(t reflect.Type, config Config) (id ID) {
 	return
 }
 
-// name returns the name of a named type. For unnamed types it returns their normal
+// name returns the name of a named type. For unnamed types it returns their normal.
 func name(t reflect.Type) string {
 	if t.Kind() == reflect.Ptr {
 		return "*" + name(t.Elem())
@@ -111,10 +111,6 @@ func name(t reflect.Type) string {
 
 // glob returns a glob of data containing as much unique information about the type as possible.
 // Used for comparisons; only the hash of this is used.
-// This should never be true unless configuration disables certain checks:
-// ```
-// typeA != typeB && globO(typeA) == globO(typeB)
-// ```
 func glob(t reflect.Type, config Config, seen map[reflect.Type]int) (g string) {
 	if seen == nil {
 		seen = make(map[reflect.Type]int)

@@ -10,14 +10,14 @@ import (
 	"github.com/stewi1014/encs/encio"
 )
 
-// NewString returns a new string Encodable
+// NewString returns a new string Encodable.
 func NewString() *String {
 	return &String{
 		buff: make([]byte, 4),
 	}
 }
 
-// String is an Encodable for strings
+// String is an Encodable for strings.
 type String struct {
 	len encio.Uint
 
@@ -26,17 +26,17 @@ type String struct {
 	buff []byte
 }
 
-// Size implemenets Encodable
+// Size implemenets Encodable.
 func (e *String) Size() int {
 	return -1 << 31
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *String) Type() reflect.Type {
 	return stringType
 }
 
-// Encode implemenets Encodable
+// Encode implemenets Encodable.
 func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	str := (*string)(ptr)
@@ -48,7 +48,7 @@ func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return encio.Write([]byte(*str), w)
 }
 
-// Decode implemenets Encodable
+// Decode implemenets Encodable.
 func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 
@@ -74,36 +74,36 @@ func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	return nil
 }
 
-// NewBool returns a new bool Encodable
+// NewBool returns a new bool Encodable.
 func NewBool() Encodable {
 	return &Bool{
 		buff: make([]byte, 1),
 	}
 }
 
-// Bool is an Encodable for bools
+// Bool is an Encodable for bools.
 type Bool struct {
 	buff []byte
 }
 
-// Size implements Encodable
+// Size implements Encodable.
 func (e *Bool) Size() int {
 	return 1
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Bool) Type() reflect.Type {
 	return boolType
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Bool) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	e.buff[0] = *(*byte)(ptr)
 	return encio.Write(e.buff, w)
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *Bool) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	if err := encio.Read(e.buff, r); err != nil {
@@ -173,17 +173,17 @@ func (e *BinaryMarshaler) setIface(ptr unsafe.Pointer) {
 	e.i = reflect.NewAt(e.t, ptr).Elem().Interface().(binaryMarshaler)
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *BinaryMarshaler) Type() reflect.Type {
 	return e.t
 }
 
-// Size implements Encodable
+// Size implements Encodable.
 func (e *BinaryMarshaler) Size() int {
 	return -1 << 31
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *BinaryMarshaler) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 
@@ -207,7 +207,7 @@ func (e *BinaryMarshaler) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return encio.Write(e.mbuff, w)
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *BinaryMarshaler) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 

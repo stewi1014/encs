@@ -105,24 +105,24 @@ func NewMap(ty reflect.Type, config Config, src Source) *Map {
 	}
 }
 
-// Map is an Encodable for maps
+// Map is an Encodable for maps.
 type Map struct {
 	key, val Encodable
 	len      encio.Int
 	t        reflect.Type
 }
 
-// Size implements Encodable
+// Size implements Encodable.
 func (e *Map) Size() int {
 	return -1 << 31
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Map) Type() reflect.Type {
 	return e.t
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	v := reflect.NewAt(e.t, ptr).Elem()
@@ -157,7 +157,7 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return nil
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	l, err := e.len.DecodeInt32(r)
@@ -198,7 +198,7 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	return nil
 }
 
-// NewInterface returns a new interface Encodable
+// NewInterface returns a new interface Encodable.
 func NewInterface(ty reflect.Type, config Config, src Source) *Interface {
 	if ty.Kind() != reflect.Interface {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an interface", ty), 0))
@@ -215,7 +215,7 @@ func NewInterface(ty reflect.Type, config Config, src Source) *Interface {
 	return e
 }
 
-// Interface is an Encodable for interfaces
+// Interface is an Encodable for interfaces.
 type Interface struct {
 	ty       reflect.Type
 	source   Source
@@ -225,17 +225,17 @@ type Interface struct {
 	buff     []byte
 }
 
-// Size implements Encodable
+// Size implements Encodable.
 func (e *Interface) Size() int {
 	return -1 << 31
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Interface) Type() reflect.Type {
 	return e.ty
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 
@@ -264,7 +264,7 @@ func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return elemEnc.Encode(unsafe.Pointer(elem.UnsafeAddr()), w)
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 
@@ -334,7 +334,7 @@ func (e *Interface) getEncodable(ty reflect.Type) Encodable {
 	return enc
 }
 
-// NewSlice returns a new slice Encodable
+// NewSlice returns a new slice Encodable.
 func NewSlice(ty reflect.Type, config Config, src Source) *Slice {
 	if ty.Kind() != reflect.Slice {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a slice", ty), 0))
@@ -346,19 +346,19 @@ func NewSlice(ty reflect.Type, config Config, src Source) *Slice {
 	}
 }
 
-// Slice is an Encodable for slices
+// Slice is an Encodable for slices.
 type Slice struct {
 	t    reflect.Type
 	elem Encodable
 	len  encio.Int
 }
 
-// Size implemenets Encodable
+// Size implemenets Encodable.
 func (e *Slice) Size() int {
 	return -1 << 31
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Slice) Type() reflect.Type {
 	return reflect.SliceOf(e.elem.Type())
 }
@@ -431,7 +431,7 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	return nil
 }
 
-// NewArray returns a new array Encodable
+// NewArray returns a new array Encodable.
 func NewArray(ty reflect.Type, config Config, src Source) *Array {
 	if ty.Kind() != reflect.Array {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an Array", ty), 0))
@@ -444,14 +444,14 @@ func NewArray(ty reflect.Type, config Config, src Source) *Array {
 	}
 }
 
-// Array is an Encodable for arrays
+// Array is an Encodable for arrays.
 type Array struct {
 	elem Encodable
 	len  uintptr
 	size uintptr
 }
 
-// Size implements Encodable
+// Size implements Encodable.
 func (e *Array) Size() int {
 	s := e.elem.Size()
 	if s < 0 {
@@ -460,12 +460,12 @@ func (e *Array) Size() int {
 	return s * int(e.len)
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Array) Type() reflect.Type {
 	return reflect.ArrayOf(int(e.len), e.elem.Type())
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	for i := uintptr(0); i < e.len; i++ {
@@ -478,7 +478,7 @@ func (e *Array) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return nil
 }
 
-// Decode implments Encodable
+// Decode implments Encodable.
 func (e *Array) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	for i := uintptr(0); i < e.len; i++ {
@@ -658,9 +658,7 @@ func (e *StructLoose) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		// at the end of the slice above index.
 		for j := i; j < len(e.fields); j++ {
 			if e.fields[j].id == id {
-				tmp := e.fields[i]
-				e.fields[i] = e.fields[j]
-				e.fields[j] = tmp
+				e.fields[i], e.fields[j] = e.fields[j], e.fields[i]
 				goto foundField
 			}
 		}
@@ -719,7 +717,7 @@ type strictField struct {
 	enc    Encodable
 }
 
-// Size implements Sized
+// Size implements Encodable.
 func (e StructStrict) Size() (size int) {
 	for _, member := range e.fields {
 		msize := member.enc.Size()
@@ -731,10 +729,10 @@ func (e StructStrict) Size() (size int) {
 	return
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e StructStrict) Type() reflect.Type { return e.ty }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e StructStrict) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	for _, m := range e.fields {
@@ -745,7 +743,7 @@ func (e StructStrict) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return nil
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e StructStrict) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	// I really don't like doubling up on the Struct encodable, but wow,
 	// what a difference it makes.

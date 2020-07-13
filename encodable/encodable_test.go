@@ -1,125 +1,135 @@
 package encodable_test
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"reflect"
 	"testing"
 	"unsafe"
 
-	"github.com/stewi1014/encs/encodable"
+	"github.com/stewi1014/encs/encio"
 )
 
-func permutate(buff *[]encodable.Config, options []encodable.Config, c encodable.Config) {
-	if len(options) == 0 {
-		*buff = append(*buff, c)
-		return
+const minSingleInt = int8(-1<<7 + 9)
+
+// Decode implements Encodable.
+func DecodeInt(ptr unsafe.Pointer) error {
+
+	*(*int)(ptr) = int(1)
+
+	return nil
+}
+
+const nilPointer = -1
+
+// Decode implements Encodable.
+func DecodeMap(ptr unsafe.Pointer) error {
+	l := 1
+	m := reflect.NewAt(rMapType, ptr).Elem()
+
+	if l == nilPointer {
+		m.Set(reflect.New(rMapType).Elem())
+		return nil
 	}
 
-	permutate(buff, options[1:], c&^options[0])
-	permutate(buff, options[1:], c|options[0])
-}
-
-var configPermutations = func() []encodable.Config {
-	options := []encodable.Config{
-		encodable.LooseTyping,
+	if uintptr(l)*(rMapType.Key().Size()+rMapType.Elem().Size()) > encio.TooBig {
+		return encio.NewIOError(encio.ErrMalformed, nil, fmt.Sprintf("map size of %v is too big", l), 0)
 	}
 
-	var buff []encodable.Config
-	permutate(&buff, options, 0)
-	return buff
-}()
+	v := reflect.MakeMapWithSize(rMapType, int(l))
+	m.Set(v)
 
-func getDescription(desc string, config encodable.Config) string {
-	return fmt.Sprintf("%v %b", desc, config)
+	nKey := reflect.New(rMapType.Key()).Elem()
+	err := DecodeInt(unsafe.Pointer(nKey.UnsafeAddr()))
+	if err != nil {
+		return err
+	}
+
+	nVal := reflect.New(rMapType.Elem()).Elem()
+	err = DecodeSecond(unsafe.Pointer(nVal.UnsafeAddr()))
+	if err != nil {
+		return err
+	}
+
+	v.SetMapIndex(nKey, nVal)
+
+	return nil
 }
 
-type RecursiveTest1 struct {
-	N *RecursiveTest1
-	B string
+// Decode implements Encodable.
+func Decode(ptr unsafe.Pointer) error {
+	// I really don't like doubling up on the Struct encodable, but wow,
+	// what a difference it makes.
+
+	f0Offset := rStructType.Field(0).Offset
+	f1Offset := rStructType.Field(1).Offset
+
+	mptr := unsafe.Pointer(uintptr(ptr) + f0Offset)
+	seenMap = &mptr
+	fmt.Println(mptr)
+	if err := DecodeMap(mptr); err != nil {
+		return err
+	}
+	if err := DecodeInt(unsafe.Pointer(uintptr(ptr) + f1Offset)); err != nil {
+		return err
+	}
+	return nil
 }
 
-type RecursiveTest2 struct {
-	S []RecursiveTest2
-	B string
+// Decode implements Encodable.
+func DecodeSecond(ptr unsafe.Pointer) error {
+	// I really don't like doubling up on the Struct encodable, but wow,
+	// what a difference it makes.
+
+	f0Offset := rStructType.Field(0).Offset
+	f1Offset := rStructType.Field(1).Offset
+
+	mptr := unsafe.Pointer(uintptr(ptr) + f0Offset)
+	reflect.NewAt(rMapType, mptr).Elem().Set(reflect.NewAt(rMapType, *seenMap).Elem())
+
+	if err := DecodeInt(unsafe.Pointer(uintptr(ptr) + f1Offset)); err != nil {
+		return err
+	}
+	return nil
 }
+
+var (
+	rStructType = reflect.TypeOf(RecursiveTest3{})
+	rMapType    = reflect.TypeOf(RecursiveTest3{}.A)
+
+	seenMap *unsafe.Pointer
+)
 
 type RecursiveTest3 struct {
-	M map[int]RecursiveTest3
-	B string
+	A map[int]RecursiveTest3
+	B int
 }
 
 func TestRecursiveTypes(t *testing.T) {
-	testCases := []struct {
-		desc   string
-		encode interface{}
-	}{
-		{
-			desc: "Struct with empty recursive Pointer",
-			encode: &RecursiveTest1{
-				N: nil,
-				B: "Hello",
-			},
-		},
-		{
-			desc: "Struct value recursion",
-			encode: func() *RecursiveTest1 {
-				a := &RecursiveTest1{
-					B: "Hello",
-				}
-				b := &RecursiveTest1{
-					B: "World",
-				}
-				a.N = b
-				b.N = a
-				return a
-			}(),
-		},
-		{
-			desc: "Slice type recursion",
-			encode: &RecursiveTest2{
-				S: nil,
-				B: "Hello",
-			},
-		},
-		{
-			desc: "Slice value recursion",
-			encode: func() *RecursiveTest2 {
-				s := make([]RecursiveTest2, 1)
-				s[0].S = s
-				s[0].B = "Hello"
-				return &s[0]
-			}(),
-		},
-		{
-			desc: "Map type recursion",
-			encode: &RecursiveTest3{
-				M: nil,
-				B: "Hello",
-			},
-		},
-		{
-			desc: "Map value recursion",
-			encode: func() *RecursiveTest3 {
-				s := RecursiveTest3{
-					B: "Hello",
-				}
-
-				m := make(map[int]RecursiveTest3, 1)
-				s.M = m
-				m[0] = s
-				return &s
-			}(),
-		},
-	}
-	for _, tC := range testCases {
-		for _, config := range configPermutations {
-			enc := encodable.New(reflect.TypeOf(tC.encode).Elem(), config, encodable.NewRecursiveSource(encodable.New))
-			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				testGeneric(tC.encode, tC.encode, enc, t)
-			})
+	encode := func() interface{} {
+		s := RecursiveTest3{
+			B: 1,
 		}
+
+		m := make(map[int]RecursiveTest3, 1)
+		s.A = m
+		m[1] = s
+		return &s
+	}()
+
+	val := reflect.ValueOf(encode).Elem()
+
+	decodedValue := reflect.New(val.Type()).Elem()
+	err := Decode(unsafe.Pointer(decodedValue.UnsafeAddr()))
+	if err != nil {
+		t.Error(err)
+	}
+
+	w := reflect.ValueOf(encode).Elem()
+
+	if !reflect.DeepEqual(w.Interface(), decodedValue.Interface()) {
+		wNil := isNil(w)
+		dNil := isNil(decodedValue)
+		t.Errorf("%v (%v, nil: %v) and %v (%v, nil: %v) are not equal", w.Type(), w.String(), wNil, decodedValue.Type(), decodedValue.String(), dNil)
 	}
 }
 
@@ -130,90 +140,4 @@ func isNil(ty reflect.Value) bool {
 	default:
 		return false
 	}
-}
-
-func testGeneric(v, want interface{}, e encodable.Encodable, t *testing.T) {
-	val := reflect.ValueOf(v)
-	if val.Kind() != reflect.Ptr {
-		t.Errorf("Test values must be passed by pointer, got %v", val.Type())
-		return
-	}
-	val = val.Elem()
-
-	ptr := unsafe.Pointer(val.UnsafeAddr())
-
-	if e.Type() != val.Type() {
-		t.Errorf("Type() returns %v but type to encode is %v", e.Type(), val.Type())
-		return
-	}
-
-	buff := new(bytes.Buffer)
-
-	err := e.Encode(ptr, buff)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if size := e.Size(); size > 0 {
-		if buff.Len() > size {
-			t.Errorf("Size() returns %v but %v bytes were written", size, buff.Len())
-		}
-	}
-
-	decodedValue := reflect.New(val.Type()).Elem()
-	decodedPtr := unsafe.Pointer(decodedValue.UnsafeAddr())
-	err = e.Decode(decodedPtr, buff)
-	if err != nil {
-		t.Error(err)
-	}
-
-	w := reflect.ValueOf(want).Elem()
-
-	if !reflect.DeepEqual(w.Interface(), decodedValue.Interface()) {
-		wNil := isNil(w)
-		dNil := isNil(decodedValue)
-		t.Errorf("%v (%v, nil: %v) and %v (%v, nil: %v) are not equal", w.Type(), w, wNil, decodedValue.Type(), decodedValue, dNil)
-	}
-
-	if buff.Len() > 0 {
-		t.Errorf("data remaining in buffer %v", buff.Bytes())
-	}
-}
-
-type buffer struct {
-	buff []byte
-	off  int
-}
-
-// Reset resets reading, allowing the same buffer to be read again.
-func (b *buffer) Reset() {
-	b.off = 0
-}
-
-func (b *buffer) Read(buff []byte) (int, error) {
-	n := copy(buff, b.buff[b.off:])
-	b.off += n
-	if n < len(buff) {
-		return n, io.EOF
-	}
-	return n, nil
-}
-
-func (b *buffer) Write(buff []byte) (int, error) {
-	copy(b.buff[b.grow(len(buff)):], buff)
-	return len(buff), nil
-}
-
-func (b *buffer) grow(n int) int {
-	l := len(b.buff)
-	c := cap(b.buff)
-	if l+n <= c {
-		b.buff = b.buff[:l+n]
-		return l
-	}
-
-	nb := make([]byte, l+n, c*2+n)
-	copy(nb, b.buff)
-	b.buff = nb
-	return l
 }

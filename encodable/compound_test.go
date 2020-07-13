@@ -33,8 +33,9 @@ func TestPointer(t *testing.T) {
 	for _, tC := range testCases {
 		for _, config := range configPermutations {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				enc := encodable.NewPointer(reflect.TypeOf(tC.encode).Elem(), 0, encodable.NewRecursiveSource(encodable.New))
-				testGeneric(tC.encode, tC.encode, enc, t)
+				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
+				testGeneric(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -73,8 +74,9 @@ func TestMap(t *testing.T) {
 	for _, tC := range testCases {
 		for _, config := range configPermutations {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				enc := encodable.NewMap(reflect.TypeOf(tC.encode).Elem(), 0, encodable.NewRecursiveSource(encodable.New))
-				testGeneric(tC.encode, tC.encode, enc, t)
+				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
+				testGeneric(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -103,8 +105,9 @@ func TestInterface(t *testing.T) {
 	for _, tC := range testCases {
 		for _, config := range configPermutations {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				enc := encodable.NewInterface(reflect.TypeOf(tC.encode).Elem(), 0, encodable.NewRecursiveSource(encodable.New))
-				testGeneric(tC.encode, tC.encode, enc, t)
+				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
+				testGeneric(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -152,8 +155,9 @@ func TestSlice(t *testing.T) {
 	for _, tC := range testCases {
 		for _, config := range configPermutations {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				enc := encodable.NewSlice(reflect.TypeOf(tC.encode).Elem(), 0, encodable.NewRecursiveSource(encodable.New))
-				testGeneric(tC.encode, tC.encode, enc, t)
+				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
+				testGeneric(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -194,8 +198,9 @@ func TestArray(t *testing.T) {
 	for _, tC := range testCases {
 		for _, config := range configPermutations {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				enc := encodable.NewArray(reflect.TypeOf(tC.encode).Elem(), 0, encodable.NewRecursiveSource(encodable.New))
-				testGeneric(tC.encode, tC.encode, enc, t)
+				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
+				testGeneric(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -272,8 +277,9 @@ func TestStruct(t *testing.T) {
 	for _, tC := range structTestCases {
 		for _, config := range configPermutations {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				enc := encodable.NewStruct(reflect.TypeOf(tC.encode).Elem(), config, encodable.NewRecursiveSource(encodable.New))
-				testGeneric(tC.encode, tC.want, enc, t)
+				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
+				testGeneric(tC.encode, tC.want, *enc, t)
 			})
 		}
 	}
@@ -289,9 +295,10 @@ func BenchmarkStructStrictEncode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	enc := encodable.NewStruct(reflect.TypeOf(benchStruct), 0, encodable.NewRecursiveSource(encodable.New))
+	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+	enc := src.NewEncodable(reflect.TypeOf(benchStruct), 0, nil)
 	for i := 0; i < b.N; i++ {
-		err := enc.Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
+		err := (*enc).Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -308,15 +315,16 @@ func BenchmarkStructStrictDecode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	enc := encodable.NewStruct(reflect.TypeOf(benchStruct), 0, encodable.NewRecursiveSource(encodable.New))
+	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+	enc := src.NewEncodable(reflect.TypeOf(benchStruct), 0, nil)
 	buff := new(buffer)
-	if err := enc.Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
+	if err := (*enc).Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
 		b.Fatal(err)
 	}
 
 	for i := 0; i < b.N; i++ {
 		buff.Reset()
-		err := enc.Decode(unsafe.Pointer(&benchStruct), buff)
+		err := (*enc).Decode(unsafe.Pointer(&benchStruct), buff)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -333,9 +341,10 @@ func BenchmarkStructLooseEncode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	enc := encodable.NewStruct(reflect.TypeOf(benchStruct), encodable.LooseTyping, encodable.NewRecursiveSource(encodable.New))
+	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+	enc := src.NewEncodable(reflect.TypeOf(benchStruct), encodable.LooseTyping, nil)
 	for i := 0; i < b.N; i++ {
-		err := enc.Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
+		err := (*enc).Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -352,15 +361,16 @@ func BenchmarkStructLooseDecode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	enc := encodable.NewStruct(reflect.TypeOf(benchStruct), encodable.LooseTyping, encodable.NewRecursiveSource(encodable.New))
+	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+	enc := src.NewEncodable(reflect.TypeOf(benchStruct), encodable.LooseTyping, nil)
 	buff := new(buffer)
-	if err := enc.Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
+	if err := (*enc).Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
 		b.Fatal(err)
 	}
 
 	for i := 0; i < b.N; i++ {
 		buff.Reset()
-		err := enc.Decode(unsafe.Pointer(&benchStruct), buff)
+		err := (*enc).Decode(unsafe.Pointer(&benchStruct), buff)
 		if err != nil {
 			b.Fatal(err)
 		}

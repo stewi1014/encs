@@ -34,6 +34,7 @@ var testCases = []interface{}{
 	[32]byte{},
 	map[[8]byte]string{},
 	new(string),
+	nil,
 }
 
 func TestMain(m *testing.M) {
@@ -135,23 +136,28 @@ func BenchmarkType_Encode(b *testing.B) {
 func TestValue(t *testing.T) {
 	values := testValues()
 
-	e := encodable.NewValue(0, encodable.NewRecursiveSource(encodable.New))
+	for _, config := range configPermutations {
+		t.Run(getDescription("value test", config), func(t *testing.T) {
+			src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+			enc := src.NewEncodable(reflect.TypeOf(reflect.Value{}), config, nil)
 
-	for i := range values {
-		buff := new(bytes.Buffer)
-		err := e.Encode(unsafe.Pointer(&values[i]), buff)
-		if err != nil {
-			t.Fatal(err)
-		}
+			for i := range values {
+				buff := new(bytes.Buffer)
+				err := (*enc).Encode(unsafe.Pointer(&values[i]), buff)
+				if err != nil {
+					t.Fatal(err)
+				}
 
-		var decoded reflect.Value
-		err = e.Decode(unsafe.Pointer(&decoded), buff)
-		if err != nil {
-			t.Errorf("error decoding: %v", err)
-		}
-		if reflect.DeepEqual(reflect.TypeOf(values[i]), decoded) {
-			t.Errorf("wrong type decoded, want %v but got %v", values[i], decoded)
-		}
+				var decoded reflect.Value
+				err = (*enc).Decode(unsafe.Pointer(&decoded), buff)
+				if err != nil {
+					t.Errorf("error decoding: %v", err)
+				}
+				if reflect.DeepEqual(reflect.TypeOf(values[i]), decoded) {
+					t.Errorf("wrong type decoded, want %v but got %v", values[i], decoded)
+				}
+			}
+		})
 	}
 }
 
@@ -163,9 +169,10 @@ func BenchmarkValue_Decode(b *testing.B) {
 	buff := new(buffer)
 
 	// populate buffer
-	e := encodable.NewValue(0, encodable.NewRecursiveSource(encodable.New))
+	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+	enc := src.NewEncodable(reflect.TypeOf(reflect.Value{}), 0, nil)
 	for i := 0; i < encodeNum; i++ {
-		err := e.Encode(unsafe.Pointer(&values[i%len(values)]), buff)
+		err := (*enc).Encode(unsafe.Pointer(&values[i%len(values)]), buff)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -174,7 +181,7 @@ func BenchmarkValue_Decode(b *testing.B) {
 	b.ResetTimer()
 	var j int
 	for i := 0; i < b.N; i++ {
-		err := e.Decode(unsafe.Pointer(&valueSink), buff)
+		err := (*enc).Decode(unsafe.Pointer(&valueSink), buff)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -188,12 +195,13 @@ func BenchmarkValue_Decode(b *testing.B) {
 
 func BenchmarkValue_Encode(b *testing.B) {
 	values := testValues()
-	e := encodable.NewValue(0, encodable.NewRecursiveSource(encodable.New))
+	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+	enc := src.NewEncodable(reflect.TypeOf(reflect.Value{}), 0, nil)
 
 	b.ResetTimer()
 	var j int
 	for i := 0; i < b.N; i++ {
-		err := e.Encode(unsafe.Pointer(&values[i%len(values)]), ioutil.Discard)
+		err := (*enc).Encode(unsafe.Pointer(&values[i%len(values)]), ioutil.Discard)
 		if err != nil {
 			b.Fatal(err)
 		}

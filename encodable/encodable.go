@@ -6,16 +6,13 @@ package encodable
 
 // I intend to keep a curated lsit of important notes to keep in mind while developing this part of encs here.
 //
-// Every instance of unsafe.Pointer that exists must always point towards a valid object
-// unsafe.Poointer types are functional pointers with all the semantics that come with it;
-// at any time, the garbage collector could come along, try to dereference the pointer and crash the program. yikes.
-// If an invalid pointer is needed as an intermediary step, uintptr should be used.
+// https://golang.org/pkg/unsafe/#Pointer; "Note that the pointer must point into an allocated object, so it may not be nil".
+// Every instance of unsafe.Pointer that exists must always point towards a valid object because apparently it can cause the garbage collector to panic.
+// Except, it doesn't. nil values of unsafe.Pointer are used in the standard libraries.
 //
-// Recursive Types and recursive values are handled differently.
-// Source is the solution to recursive types; it should stop a type trying to instantiate itself in its creation function,
-// and return a placeholder.
-// Recursive values are resolved by the Encodables themselves. E.g. pointer encodables should keep track of pointers they encode,
-// and if they reach a cycle, encode a reference in the buffer that decoders can use to point the pointer to the previously decoded value.
+// Recursion detection relises on the same pointer being attempted to Encode from. Encodables may allocate and pass whatever pointers
+// they want to element Decoders when decoding, but they may not do so during encoding. If and Encodable allocates a new object and passes it to its element encodables,
+// then it must implement its own recursion checks; the Recursive Encodable will not work.
 
 import (
 	"fmt"
@@ -36,7 +33,7 @@ const (
 )
 
 const (
-	// StructTag is the boolean struct tag that when applied to a struct, will force the fields inclusion or exclusion from encoding.
+	// StructTag is the boolean struct tag that when applied to a struct, will force the field's inclusion or exclusion from encoding.
 	// srvconv.ParseBool() is used for parsing the tag value; it accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
 	StructTag = "encs"
 )
@@ -44,15 +41,21 @@ const (
 // Encodable is an Encoder and Decoder for a specific type.
 //
 // Encodables are not assumed to be thread safe.
-// Encode() and Decode() often share static buffers for the sake of performance, but this comes at the cost of thread safety.
-// Concurrent calls to either Encode() or Decode() will almost certainly result in complete failure.
 // Use NewConcurrent or higher level functions if concurrency is needed.
 //
 // In a similar vein, Encodables are allowed to assume certain characteristics:
-// 1. Calling Source.NewEncodable() will not result in infinite recursion, even if attempting to create the same Encodable.
-// 1. Calling Encode() or Decode() on generated Encodable will not result in the calling Encodable instance being called again, even if it is the same Encodable.
-// 1. Calling Encode() or Decode() on an unknown generated Encodable will not result in infite recursion **if pointers are equal**, even if it is the Same Encodable.
-// 	If an encodable copies the value it passes to its elemtn Encodables, then pointers cannot be compared, and
+// 1. Encode() and Decode() will not be called concurrently.
+// 1. Calling NewEncodable() on the provided Source will not result in infinite recursion, even if attempting to create the same Encodable.
+// 1. Calling Encode() or Decode() on an Encodable from the provided Source will not result in the calling Encodable instance being called again, even if it is the same Encodable.
+// 1. Calling Encode() on an Encodable from the provided Source will not result in infinite recursion unless the passed pointer is to a copied object.
+// 1. Calling Decode() on an Encodable from the provided Source will not result in infinite recursion.
+//
+// In order to provide these assumptions, Encodables must
+// 1. Never copy the value they pass to element Encodables, with the exception of Map types, and encodables of the reflect.Value type.
+// 	Things seem to work ok most of the time when doing this, but it's not a good idea.
+// 1. Only create new Encodables using the provided Source.
+// 1. Pass the same Source they were given to element Encodables.
+// 1. Never pass Encodables to other Encodables; each Encodable must make its own element Encodables.
 //
 // Encodables return two kinds of error.
 // encio.IOError for io and corrupted data errors, and encio.Error for encoding errors.
@@ -83,78 +86,91 @@ type Encodable interface {
 	Decode(ptr unsafe.Pointer, r io.Reader) error
 }
 
-// NewFunc is the function signature of functions that create new Encodables.
-type NewFunc func(reflect.Type, Config, Source) Encodable
+// NewDefaultSource returns a new DefaultSoure.
+func NewDefaultSource() DefaultSource { return DefaultSource{} }
 
-// New returns a new Encodable for encoding the type ty.
-func New(ty reflect.Type, config Config, src Source) Encodable {
+// DefaultSource is a simple Source for Encodables. It performs no recursion checks.
+// Use RecursiveSource unless it is guaranteed there will not be recursive types or values encoded.
+// DefaultSource{} is an appropriate way to instantiate it.
+type DefaultSource struct{}
+
+// NewEncodable implements Source.
+func (s DefaultSource) NewEncodable(ty reflect.Type, config Config, src Source) (enc *Encodable) {
+	if src == nil {
+		src = s
+	}
+
+	enc = new(Encodable)
+
 	ptrt := reflect.PtrTo(ty)
 	kind := ty.Kind()
 	switch {
 	// Implementers
 	case ptrt.Implements(binaryMarshalerType) && ptrt.Implements(binaryUnmarshalerType):
-		return NewBinaryMarshaler(ty)
+		*enc = NewBinaryMarshaler(ty)
 
 	// Specific types
 	case ty == reflectTypeType:
-		return NewType(config)
+		*enc = NewType(config)
 	case ty == reflectValueType:
-		return NewValue(config, src)
+		*enc = NewValue(config, src)
 
 	// Compound-Types
 	case kind == reflect.Ptr:
-		return NewPointer(ty, config, src)
+		*enc = NewPointer(ty, config, src)
 	case kind == reflect.Interface:
-		return NewInterface(ty, config, src)
+		*enc = NewInterface(ty, config, src)
 	case kind == reflect.Struct:
-		return NewStruct(ty, config, src)
+		*enc = NewStruct(ty, config, src)
 	case kind == reflect.Array:
-		return NewArray(ty, config, src)
+		*enc = NewArray(ty, config, src)
 	case kind == reflect.Slice:
-		return NewSlice(ty, config, src)
+		*enc = NewSlice(ty, config, src)
 	case kind == reflect.Map:
-		return NewMap(ty, config, src)
+		*enc = NewMap(ty, config, src)
 
 	// Integer types
 	case kind == reflect.Uint8:
-		return NewUint8()
+		*enc = NewUint8()
 	case kind == reflect.Uint16:
-		return NewUint16()
+		*enc = NewUint16()
 	case kind == reflect.Uint32:
-		return NewUint32()
+		*enc = NewUint32()
 	case kind == reflect.Uint64:
-		return NewUint64()
+		*enc = NewUint64()
 	case kind == reflect.Uint:
-		return NewUint()
+		*enc = NewUint()
 	case kind == reflect.Int8:
-		return NewInt8()
+		*enc = NewInt8()
 	case kind == reflect.Int16:
-		return NewInt16()
+		*enc = NewInt16()
 	case kind == reflect.Int32:
-		return NewInt32()
+		*enc = NewInt32()
 	case kind == reflect.Int64:
-		return NewInt64()
+		*enc = NewInt64()
 	case kind == reflect.Int:
-		return NewInt()
+		*enc = NewInt()
 	case kind == reflect.Uintptr:
-		return NewUintptr()
+		*enc = NewUintptr()
 
 	// Float types
 	case kind == reflect.Float32:
-		return NewFloat32()
+		*enc = NewFloat32()
 	case kind == reflect.Float64:
-		return NewFloat64()
+		*enc = NewFloat64()
 	case kind == reflect.Complex64:
-		return NewComplex64()
+		*enc = NewComplex64()
 	case kind == reflect.Complex128:
-		return NewComplex128()
+		*enc = NewComplex128()
 
 	// Misc types
 	case kind == reflect.Bool:
-		return NewBool()
+		*enc = NewBool()
 	case kind == reflect.String:
-		return NewString()
+		*enc = NewString()
 	default:
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot create encodable for type %v", ty), 0))
 	}
+
+	return
 }

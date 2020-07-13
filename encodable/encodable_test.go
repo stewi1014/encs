@@ -8,97 +8,9 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/stewi1014/encs/encio"
+	"github.com/kr/pretty"
 	"github.com/stewi1014/encs/encodable"
 )
-
-type RecursiveTest1 struct {
-	N *RecursiveTest1
-	B string
-}
-
-type RecursiveTest2 struct {
-	S []RecursiveTest2
-	B string
-}
-
-type RecursiveTest3 struct {
-	M map[int]RecursiveTest3
-	B string
-}
-
-func TestRecursiveTypes(t *testing.T) {
-	testCases := []struct {
-		desc   string
-		encode interface{}
-	}{
-		{
-			desc: "Struct with empty recursive Pointer",
-			encode: &RecursiveTest1{
-				N: nil,
-				B: "Hello",
-			},
-		},
-		{
-			desc: "Struct value recursion",
-			encode: func() *RecursiveTest1 {
-				a := &RecursiveTest1{
-					B: "Hello",
-				}
-				b := &RecursiveTest1{
-					B: "World",
-				}
-				a.N = b
-				b.N = a
-				return a
-			}(),
-		},
-		{
-			desc: "Slice type recursion",
-			encode: &RecursiveTest2{
-				S: nil,
-				B: "Hello",
-			},
-		},
-		{
-			desc: "Slice value recursion",
-			encode: func() *RecursiveTest2 {
-				s := make([]RecursiveTest2, 1)
-				s[0].S = s
-				s[0].B = "Hello"
-				return &s[0]
-			}(),
-		},
-		{
-			desc: "Map type recursion",
-			encode: &RecursiveTest3{
-				M: nil,
-				B: "Hello",
-			},
-		},
-		{
-			desc: "Map value recursion",
-			encode: func() *RecursiveTest3 {
-				s := RecursiveTest3{
-					B: "Hello",
-				}
-
-				m := make(map[int]RecursiveTest3, 1)
-				s.M = m
-				m[0] = s
-				return &s
-			}(),
-		},
-	}
-	for _, tC := range testCases {
-		for _, config := range configPermutations {
-			enc := encodable.New(reflect.TypeOf(tC.encode).Elem(), config, encodable.NewRecursiveSource(encodable.New))
-			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				testGeneric(tC.encode, tC.encode, enc, t)
-			})
-		}
-	}
-}
 
 func permutate(buff *[]encodable.Config, options []encodable.Config, c encodable.Config) {
 	if len(options) == 0 {
@@ -124,60 +36,52 @@ func getDescription(desc string, config encodable.Config) string {
 	return fmt.Sprintf("%v %b", desc, config)
 }
 
-func isNil(ty reflect.Value) bool {
-	switch ty.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Slice, reflect.Ptr, reflect.Map:
-		return ty.IsNil()
-	default:
-		return false
-	}
-}
-
-func testGeneric(v, want interface{}, e encodable.Encodable, t *testing.T) {
+func runTest(v interface{}, enc encodable.Encodable, t *testing.T) interface{} {
 	val := reflect.ValueOf(v)
 	if val.Kind() != reflect.Ptr {
-		t.Errorf("Test values must be passed by pointer, got %v", val.Type())
-		return
+		panic("cannot run test with value not passed by reference")
 	}
 	val = val.Elem()
 
-	ptr := unsafe.Pointer(val.UnsafeAddr())
-
-	if e.Type() != val.Type() {
-		t.Errorf("Type() returns %v but type to encode is %v", e.Type(), val.Type())
-		return
+	if enc.Type() != val.Type() {
+		t.Errorf("Type() returns %v but type to encode is %v", enc.Type(), val.Type())
 	}
 
 	buff := new(bytes.Buffer)
 
-	err := e.Encode(ptr, buff)
+	err := enc.Encode(unsafe.Pointer(val.UnsafeAddr()), buff)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
+		return nil
 	}
 
-	if size := e.Size(); size > 0 {
-		if buff.Len() > size {
-			t.Errorf("Size() returns %v but %v bytes were written", size, buff.Len())
-		}
+	if size := enc.Size(); size >= 0 && buff.Len() > size {
+		t.Errorf("Size() returns %v but %v bytes were written", size, buff.Len())
 	}
 
-	decodedValue := reflect.New(val.Type()).Elem()
-	decodedPtr := unsafe.Pointer(decodedValue.UnsafeAddr())
-	err = e.Decode(decodedPtr, buff)
+	decoded := reflect.New(val.Type()).Elem()
+	err = enc.Decode(unsafe.Pointer(decoded.UnsafeAddr()), buff)
 	if err != nil {
-		t.Error(err)
-	}
-
-	w := reflect.ValueOf(want).Elem()
-
-	if !encio.DeepEqual(w.Interface(), decodedValue.Interface()) {
-		wNil := isNil(w)
-		dNil := isNil(decodedValue)
-		t.Errorf("%v (%v, nil: %v) and %v (%v, nil: %v) are not equal", w.Type(), w.String(), wNil, decodedValue.Type(), decodedValue.String(), dNil)
+		t.Fatal(err)
+		return nil
 	}
 
 	if buff.Len() > 0 {
 		t.Errorf("data remaining in buffer %v", buff.Bytes())
+	}
+
+	return decoded.Addr().Interface()
+}
+
+func testGeneric(v, want interface{}, e encodable.Encodable, t *testing.T) {
+	got := runTest(v, e, t)
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%v (%v) and %v (%v) are not equal", reflect.TypeOf(want), reflect.ValueOf(want).String(), reflect.TypeOf(want), reflect.ValueOf(want).String())
+		fmt.Println("Got:")
+		fmt.Println(pretty.Sprint(got))
+		fmt.Println("Wanted:")
+		fmt.Println(pretty.Sprint(want))
 	}
 }
 

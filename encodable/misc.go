@@ -12,18 +12,12 @@ import (
 
 // NewString returns a new string Encodable.
 func NewString() *String {
-	return &String{
-		buff: make([]byte, 4),
-	}
+	return &String{}
 }
 
 // String is an Encodable for strings.
 type String struct {
 	len encio.Uint
-
-	// buff's backing array is never to be touched unless explicitly set beforehand.
-	// It can point to read-only memopry from the previous operation.
-	buff []byte
 }
 
 // Size implemenets Encodable.

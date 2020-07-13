@@ -14,6 +14,7 @@ import (
 
 func init() {
 	err := Register(
+		nil,
 		intType,
 		int8Type,
 		int16Type,
@@ -76,6 +77,10 @@ type ID [2]uint64
 
 // GetID returns a unique ID for a given reflect.Type.
 func GetID(t reflect.Type, config Config) (id ID) {
+	if t == nil {
+		return ID{0, 0}
+	}
+
 	hasher := crc64.New(crc64.MakeTable(crc64.ISO))
 
 	// First half is the hashed name
@@ -291,7 +296,7 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 			return nil
 		}
 
-		// Neither existing type nor any registered types match. Try search by name so we can shor a better error message.
+		// Neither existing type nor any registered types match. Try search by name so we can show a better error message.
 		var nameMatch reflect.Type
 		if existing[0] == id[0] {
 			nameMatch = ty
@@ -306,6 +311,9 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		if nameMatch != nil && nameMatch.Name() != "" {
 			return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %016X. %v has the same name, but its signature doesn't match. Is it different on the remote?", id, nameMatch), 0)
 		}
+	}
+
+	if !ok {
 		return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %016X. Is it registered?", id), 0)
 	}
 
@@ -319,6 +327,7 @@ func NewValue(config Config, src Source) *Value {
 		typeEnc: NewType(config),
 		src:     NewCachingSource(src),
 		config:  config,
+		buff:    make([]byte, 1),
 	}
 }
 
@@ -327,7 +336,12 @@ type Value struct {
 	typeEnc *Type
 	config  Config
 	src     *CachingSource
+	buff    []byte
 }
+
+const (
+	valueValid = 1 << iota
+)
 
 // Size implements Encodable.
 func (e *Value) Size() int { return -1 << 31 }
@@ -338,51 +352,69 @@ func (e *Value) Type() reflect.Type { return reflectValueType }
 // Encode implements Encodable.
 func (e *Value) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
-	v := (*reflect.Value)(ptr)
+	v := *(*reflect.Value)(ptr)
+
+	if !v.IsValid() {
+		e.buff[0] = 0
+		return encio.Write(e.buff, w)
+	}
+	e.buff[0] = valueValid
+	if err := encio.Write(e.buff, w); err != nil {
+		return err
+	}
+
 	ty := v.Type()
 
-	enc := e.src.NewEncodable(ty, e.config)
+	if !v.CanAddr() {
+		n := reflect.New(ty).Elem()
+		n.Set(v)
+		v = n
+	}
+
+	enc := e.src.NewEncodable(ty, e.config, nil)
 
 	if err := e.typeEnc.Encode(unsafe.Pointer(&ty), w); err != nil {
 		return err
 	}
 
-	if v.CanAddr() {
-		return enc.Encode(unsafe.Pointer(v.UnsafeAddr()), w)
-	}
-	n := reflect.New(ty).Elem()
-	n.Set(*v)
-	return enc.Encode(unsafe.Pointer(n.UnsafeAddr()), w)
+	return (*enc).Encode(unsafe.Pointer(v.UnsafeAddr()), w)
 }
 
 // Decode implements Encodable.
 func (e *Value) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	v := (*reflect.Value)(ptr)
+
+	if err := encio.Read(e.buff, r); err != nil {
+		return err
+	}
+
+	if e.buff[0]&valueValid == 0 {
+		*(*reflect.Value)(ptr) = reflect.Value{}
+		return nil
+	}
 
 	var ty reflect.Type
 	if err := e.typeEnc.Decode(unsafe.Pointer(&ty), r); err != nil {
 		return err
 	}
 
-	enc := e.src.NewEncodable(ty, e.config)
+	enc := e.src.NewEncodable(ty, e.config, nil)
 
+	v := *(*reflect.Value)(ptr)
 	if !v.CanAddr() {
 		n := reflect.New(ty).Elem()
 		if v.IsValid() && ty == v.Type() {
-			n.Set(*v)
+			n.Set(v)
 		}
-		v = &n
+		v = n
 	}
 
-	elem := unsafe.Pointer(v.UnsafeAddr())
-
-	if err := enc.Decode(elem, r); err != nil {
+	if err := (*enc).Decode(unsafe.Pointer(v.UnsafeAddr()), r); err != nil {
 		// I no longer trust whatever is in the value
-		*v = reflect.ValueOf(nil)
+		*(*reflect.Value)(ptr) = reflect.Value{}
 		return err
 	}
 
-	*v = reflect.ValueOf(reflect.NewAt(ty, elem))
+	*(*reflect.Value)(ptr) = v
 	return nil
 }

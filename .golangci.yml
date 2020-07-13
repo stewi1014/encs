@@ -28,6 +28,8 @@ linters-settings:
       - experimental
       - style
       - diagnostic
+    disabled-checks:
+      - ptrToRefParam
   maligned:
     suggest-new: true
   misspell:

@@ -14,7 +14,7 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w:       w,
 		typeEnc: encodable.NewType(0),
-		source:  encodable.NewCachingSource(encodable.NewRecursiveSource(encodable.New)),
+		source:  encodable.NewCachingSource(encodable.NewRecursiveSource(encodable.DefaultSource{})),
 	}
 }
 
@@ -44,5 +44,6 @@ func (e *Encoder) Encode(v interface{}) error {
 		return err
 	}
 
-	return e.source.NewEncodable(t, 0).Encode(unsafe.Pointer(reflect.ValueOf(v).Elem().UnsafeAddr()), e.w)
+	enc := e.source.NewEncodable(t, 0, nil)
+	return (*enc).Encode(unsafe.Pointer(reflect.ValueOf(v).Elem().UnsafeAddr()), e.w)
 }

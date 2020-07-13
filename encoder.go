@@ -14,8 +14,7 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w:       w,
 		typeEnc: encodable.NewType(0),
-		source:  &encodable.DefaultSource{},
-		encs:    make(map[reflect.Type]encodable.Encodable),
+		source:  encodable.NewCachingSource(encodable.NewRecursiveSource(encodable.New)),
 	}
 }
 
@@ -24,7 +23,6 @@ type Encoder struct {
 	mutex   sync.Mutex
 	typeEnc *encodable.Type
 	source  encodable.Source
-	encs    map[reflect.Type]encodable.Encodable
 }
 
 func (e *Encoder) Encode(v interface{}) error {
@@ -46,11 +44,5 @@ func (e *Encoder) Encode(v interface{}) error {
 		return err
 	}
 
-	enc, ok := e.encs[t]
-	if !ok {
-		enc = e.source.NewEncodable(t, 0)
-		e.encs[t] = enc
-	}
-
-	return enc.Encode(unsafe.Pointer(reflect.ValueOf(v).Elem().UnsafeAddr()), e.w)
+	return e.source.NewEncodable(t, 0).Encode(unsafe.Pointer(reflect.ValueOf(v).Elem().UnsafeAddr()), e.w)
 }

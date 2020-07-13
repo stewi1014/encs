@@ -16,9 +16,9 @@ type EncID struct {
 	Config
 }
 
-// Source is a generator of Encodables. It is typically used as a method for avoiding infinite recursion on recursive types,
-// but can also serve to modify the default behaviour of encodable generation. Compound type Encodables take Source as an argument upon creation,
-// and use it for the generation of their element types either during creation, or they keep it and use it for encode-time generation.
+// Source is a generator of Encodables. Compound type Encodables take Source as an argument upon creation,
+// and use it for the generation of their element types either during creation or for encode-time generation.
+// The Source is responsible for resolving recursive types.
 type Source interface {
 	// NewEncodable returns a new Encodable.
 	// Source should take care to avoid infinite recursion, taking note of when it is called to create an Encodable from inside the same Encodable's creation function.
@@ -27,8 +27,8 @@ type Source interface {
 }
 
 // NewCachingSource returns a new CachingSource, using source for cache misses.
-// Users of CachingSource must not pass it to element Encodables, else a situation may arise where
-// a recursive type Encodable that's generated at encode-time is given itself from the cache, and it makes
+// Users of CachingSource must not pass it to element Encodables why may try to create themselves,
+// else a situation may arise where a recursive type Encodable is given itself from the cache, and it makes
 // nested calls to itself. Use CachingSource.Source to pass to element Encodables.
 func NewCachingSource(source Source) *CachingSource {
 	return &CachingSource{
@@ -55,143 +55,106 @@ func (src *CachingSource) NewEncodable(ty reflect.Type, config Config) (enc Enco
 	return enc
 }
 
-// DefaultSource safely creates Encodables for recursive types.
-// It provides no further functionality over the resolution of recursive types,
-// and creation of Encodables in this library.
-// It can be initialised with DefaultSource{}.
-type DefaultSource map[EncID]*Recursive
+// NewRecursiveSource returns a new RecursiveSource, using newFunc as a source for encodables.
+// Typically, encodable.New is passed as newFunc, but any encodable creating function can be passed to
+// customise encodable generation.
+func NewRecursiveSource(newFunc NewFunc) *RecursiveSource {
+	return &RecursiveSource{
+		new:  newFunc,
+		seen: make(map[EncID]*Recursive),
+	}
+}
+
+// RecursiveSource safely creates Encodables for recursive types.
+// It returns Recursive when resolving recursive types.
+type RecursiveSource struct {
+	new  NewFunc
+	seen map[EncID]*Recursive
+}
 
 // NewEncodable implements Source.
 // When NewEncodable is called to make an Encodable that is currently being created,
 // it returns a Recursive Encodable instead.
-func (src *DefaultSource) NewEncodable(ty reflect.Type, config Config) (enc Encodable) {
-	if *src == nil {
-		m := make(DefaultSource)
-		src = &m
-	}
-
+func (src *RecursiveSource) NewEncodable(ty reflect.Type, config Config) (enc Encodable) {
 	id := EncID{
 		Type:   ty,
 		Config: config,
 	}
 
-	if r, ok := (*src)[id]; ok {
+	if r, ok := src.seen[id]; ok {
 		// We've been asked to create an encodable that's already in the process of being created; a recursive type.
 		if r != nil {
 			// Already have one
 			return r
 		}
 
-		r := NewRecursive(func() Encodable {
-			return src.makeEncodable(ty, config)
+		r := NewRecursive(ty, func() Encodable {
+			return New(ty, config, src)
 		})
-		(*src)[id] = r
+		src.seen[id] = r
 		return r
 	}
 	// Need to make a new encodable
 
-	(*src)[id] = nil // Let ourselves know we're currently building an encodable of this type.
+	src.seen[id] = nil // Let ourselves know we're currently building an encodable of this type.
 
-	enc = src.makeEncodable(ty, config)
+	enc = New(ty, config, src)
 
 	// We're done making the encodable.
-	if r, ok := (*src)[id]; ok && r != nil {
+	r, ok := src.seen[id]
+	if r != nil {
+		// This was a recursive-type Encodable. Replace our returned Encodable with Recursive so it can maintain all cycles.
+		r.Push(enc)
 		enc = r
+	} else if ok {
+		// This was not a recursive type, delete it.
+		delete(src.seen, id)
 	}
 
 	return
-}
-
-// makeEncodable creates an encodable with no checks.
-// It is used either after recursive checks have taken place, or in the generation function passed to Recursive.
-func (src *DefaultSource) makeEncodable(ty reflect.Type, config Config) Encodable {
-	ptrt := reflect.PtrTo(ty)
-	kind := ty.Kind()
-	switch {
-	// Implementers
-	case ptrt.Implements(binaryMarshalerType) && ptrt.Implements(binaryUnmarshalerType):
-		return NewBinaryMarshaler(ty)
-
-	// Specific types
-	case ty == reflectTypeType:
-		return NewType(config)
-	case ty == reflectValueType:
-		return NewValue(config, src)
-
-	// Compound-Types
-	case kind == reflect.Ptr:
-		return NewPointer(ty, config, src)
-	case kind == reflect.Interface:
-		return NewInterface(ty, config, src)
-	case kind == reflect.Struct:
-		return NewStruct(ty, config, src)
-	case kind == reflect.Array:
-		return NewArray(ty, config, src)
-	case kind == reflect.Slice:
-		return NewSlice(ty, config, src)
-	case kind == reflect.Map:
-		return NewMap(ty, config, src)
-
-	// Integer types
-	case kind == reflect.Uint8:
-		return NewUint8()
-	case kind == reflect.Uint16:
-		return NewUint16()
-	case kind == reflect.Uint32:
-		return NewUint32()
-	case kind == reflect.Uint64:
-		return NewUint64()
-	case kind == reflect.Uint:
-		return NewUint()
-	case kind == reflect.Int8:
-		return NewInt8()
-	case kind == reflect.Int16:
-		return NewInt16()
-	case kind == reflect.Int32:
-		return NewInt32()
-	case kind == reflect.Int64:
-		return NewInt64()
-	case kind == reflect.Int:
-		return NewInt()
-	case kind == reflect.Uintptr:
-		return NewUintptr()
-
-	// Float types
-	case kind == reflect.Float32:
-		return NewFloat32()
-	case kind == reflect.Float64:
-		return NewFloat64()
-	case kind == reflect.Complex64:
-		return NewComplex64()
-	case kind == reflect.Complex128:
-		return NewComplex128()
-
-	// Misc types
-	case kind == reflect.Bool:
-		return NewBool()
-	case kind == reflect.String:
-		return NewString()
-	default:
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot create encodable for type %v", ty), 0))
-	}
 }
 
 // RecursiveMaxCache is the maximum number of Encodables that Recursive will cache.
 const RecursiveMaxCache = 256
 
 // NewRecursive returns a new Recursive Encodable.
-func NewRecursive(newFunc func() Encodable) *Recursive {
-	return &Recursive{
+func NewRecursive(ty reflect.Type, newFunc func() Encodable) *Recursive {
+	r := &Recursive{
+		ty:   ty,
 		new:  newFunc,
 		encs: make([]Encodable, 0, 1),
 	}
+
+	switch ty.Kind() {
+	case reflect.Chan,
+		reflect.Func,
+		reflect.Map,
+		reflect.Ptr,
+		reflect.Slice,
+		reflect.UnsafePointer:
+		r.state |= recursiveReferenceType
+	}
+
+	return r
 }
 
-// Recursive is an encodable that only creates its wrapped Encodable when called.
-// It caches instances to avoid creation on every call.
+const (
+	recursiveMaster = 1 << iota
+	recursiveReferenceType
+)
+
+// Recursive is an encodable that resolved recursive values and types.
+//
+// Instances of Encodable are allowed to assume that calls to unknown element Encodables will not result in
+// a nested call to themselves
+// It avoids the creating of the wrapped Encodable
 type Recursive struct {
-	new  func() Encodable
-	encs []Encodable
+	new      func() Encodable
+	ty       reflect.Type
+	intEnc   encio.Int
+	state    byte
+	pointers []unsafe.Pointer
+	encs     []Encodable
 }
 
 // Size implements Encodable.
@@ -201,14 +164,27 @@ func (e *Recursive) Size() int {
 }
 
 // Type implements Encodable.
-func (e *Recursive) Type() reflect.Type {
-	enc := e.Pop()
-	defer e.Push(enc)
-	return enc.Type()
-}
+func (e *Recursive) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Recursive) Encode(ptr unsafe.Pointer, w io.Writer) error {
+	if e.master() {
+		// We're the first call. Clear pointers when we exit.
+		defer e.reset()
+	}
+
+	index, has := e.has(ptr)
+	if has {
+		// We've already encoded this pointer.
+		return e.intEnc.EncodeInt32(w, index)
+	}
+
+	if err := e.intEnc.EncodeInt32(w, -1); err != nil {
+		return err
+	}
+
+	e.add(ptr)
+
 	enc := e.Pop()
 	defer e.Push(enc)
 	return enc.Encode(ptr, w)
@@ -216,6 +192,32 @@ func (e *Recursive) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 // Decode implements Encodable.
 func (e *Recursive) Decode(ptr unsafe.Pointer, r io.Reader) error {
+	if e.master() {
+		// We're the first call. Clear pointers when we exit.
+		defer e.reset()
+	}
+
+	index, err := e.intEnc.DecodeInt32(r)
+	if err != nil {
+		return err
+	}
+
+	if index >= 0 {
+		// Encoded by reference
+		if index >= int32(len(e.pointers)) {
+			return encio.NewError(
+				encio.ErrMalformed,
+				fmt.Sprintf("pointer reference %v is out of bounds; only have %v references", index, len(e.pointers)),
+				0,
+			)
+		}
+
+		reflect.NewAt(e.ty, ptr).Elem().Set(reflect.NewAt(e.ty, e.pointers[index]).Elem())
+		return nil
+	}
+
+	e.add(ptr)
+
 	enc := e.Pop()
 	defer e.Push(enc)
 	return enc.Decode(ptr, r)
@@ -248,4 +250,55 @@ func (e *Recursive) Push(enc Encodable) {
 	copy(nb, e.encs)
 	nb[l] = enc
 	e.encs = nb
+}
+
+func (e *Recursive) master() bool {
+	if e.state&recursiveMaster > 0 {
+		return false
+	}
+
+	e.state |= recursiveMaster
+	return true
+}
+
+// Reset should be called at the end of every encode session, else old pointer data could be re-used across encodes.
+func (e *Recursive) reset() {
+	e.pointers = e.pointers[:0]
+	e.state &^= recursiveMaster
+}
+
+func (e *Recursive) add(ptr unsafe.Pointer) {
+	l := len(e.pointers)
+	if l < cap(e.pointers) {
+		e.pointers = e.pointers[:l+1]
+		e.pointers[l] = ptr
+		return
+	}
+
+	var nb []unsafe.Pointer
+	if cap(e.pointers) == 0 {
+		nb = make([]unsafe.Pointer, l+1, 2)
+	} else {
+		nb = make([]unsafe.Pointer, l+1, cap(e.pointers)*2)
+	}
+	copy(nb, e.pointers)
+	nb[l] = ptr
+	e.pointers = nb
+}
+
+func (e *Recursive) has(ptr unsafe.Pointer) (int32, bool) {
+	for i := int32(0); i < int32(len(e.pointers)); i++ {
+		if e.pointers[i] == ptr {
+			return i, true
+		}
+		if e.state&recursiveReferenceType > 0 {
+			existing := reflect.NewAt(e.ty, e.pointers[i]).Elem()
+			val := reflect.NewAt(e.ty, ptr).Elem()
+			if existing.Pointer() == val.Pointer() {
+				return i, true
+			}
+		}
+	}
+
+	return 0, false
 }

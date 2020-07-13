@@ -2,6 +2,7 @@ package encodable_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"reflect"
 	"testing"
@@ -9,6 +10,118 @@ import (
 
 	"github.com/stewi1014/encs/encodable"
 )
+
+func permutate(buff *[]encodable.Config, options []encodable.Config, c encodable.Config) {
+	if len(options) == 0 {
+		*buff = append(*buff, c)
+		return
+	}
+
+	permutate(buff, options[1:], c&^options[0])
+	permutate(buff, options[1:], c|options[0])
+}
+
+var configPermutations = func() []encodable.Config {
+	options := []encodable.Config{
+		//encodable.LooseTyping,
+	}
+
+	var buff []encodable.Config
+	permutate(&buff, options, 0)
+	return buff
+}()
+
+func getDescription(desc string, config encodable.Config) string {
+	return fmt.Sprintf("%v %b", desc, config)
+}
+
+type RecursiveTest1 struct {
+	N *RecursiveTest1
+	B string
+}
+
+type RecursiveTest2 struct {
+	S []RecursiveTest2
+	B string
+}
+
+type RecursiveTest3 struct {
+	M map[int]RecursiveTest3
+	B string
+}
+
+func TestRecursiveTypes(t *testing.T) {
+	testCases := []struct {
+		desc   string
+		encode interface{}
+	}{
+		{
+			desc: "Struct with empty recursive Pointer",
+			encode: &RecursiveTest1{
+				N: nil,
+				B: "Hello",
+			},
+		},
+		{
+			desc: "Struct value recursion",
+			encode: func() *RecursiveTest1 {
+				a := &RecursiveTest1{
+					B: "Hello",
+				}
+				b := &RecursiveTest1{
+					B: "World",
+				}
+				a.N = b
+				b.N = a
+				return a
+			}(),
+		},
+		{
+			desc: "Slice type recursion",
+			encode: &RecursiveTest2{
+				S: nil,
+				B: "Hello",
+			},
+		},
+		{
+			desc: "Slice value recursion",
+			encode: func() *RecursiveTest2 {
+				s := make([]RecursiveTest2, 1)
+				s[0].S = s
+				s[0].B = "Hello"
+				return &s[0]
+			}(),
+		},
+		{
+			desc: "Map type recursion",
+			encode: &RecursiveTest3{
+				M: nil,
+				B: "Hello",
+			},
+		},
+		{
+			desc: "Map value recursion",
+			encode: func() *RecursiveTest3 {
+				s := RecursiveTest3{
+					B: "Hello",
+				}
+
+				m := make(map[int]RecursiveTest3, 1)
+				s.M = m
+				m[0] = s
+				return &s
+			}(),
+		},
+	}
+	for _, tC := range testCases {
+		for _, config := range configPermutations {
+			enc := encodable.New(reflect.TypeOf(tC.encode).Elem(), config, encodable.NewRecursiveSource(encodable.New))
+			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
+				testGeneric(tC.encode, tC.encode, enc, t)
+			})
+		}
+	}
+}
 
 func isNil(ty reflect.Value) bool {
 	switch ty.Kind() {
@@ -20,11 +133,18 @@ func isNil(ty reflect.Value) bool {
 }
 
 func testGeneric(v, want interface{}, e encodable.Encodable, t *testing.T) {
-	val := reflect.ValueOf(v).Elem()
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Ptr {
+		t.Errorf("Test values must be passed by pointer, got %v", val.Type())
+		return
+	}
+	val = val.Elem()
+
 	ptr := unsafe.Pointer(val.UnsafeAddr())
 
 	if e.Type() != val.Type() {
 		t.Errorf("Type() returns %v but type to encode is %v", e.Type(), val.Type())
+		return
 	}
 
 	buff := new(bytes.Buffer)

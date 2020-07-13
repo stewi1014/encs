@@ -16,12 +16,14 @@ package encodable
 // and return a placeholder.
 // Recursive values are resolved by the Encodables themselves. E.g. pointer encodables should keep track of pointers they encode,
 // and if they reach a cycle, encode a reference in the buffer that decoders can use to point the pointer to the previously decoded value.
-// TODO: Stress test recursive types and values.
 
 import (
+	"fmt"
 	"io"
 	"reflect"
 	"unsafe"
+
+	"github.com/stewi1014/encs/encio"
 )
 
 // Config controls the configuration of encodables.
@@ -45,6 +47,12 @@ const (
 // Encode() and Decode() often share static buffers for the sake of performance, but this comes at the cost of thread safety.
 // Concurrent calls to either Encode() or Decode() will almost certainly result in complete failure.
 // Use NewConcurrent or higher level functions if concurrency is needed.
+//
+// In a similar vein, Encodables are allowed to assume certain characteristics:
+// 1. Calling Source.NewEncodable() will not result in infinite recursion, even if attempting to create the same Encodable.
+// 1. Calling Encode() or Decode() on generated Encodable will not result in the calling Encodable instance being called again, even if it is the same Encodable.
+// 1. Calling Encode() or Decode() on an unknown generated Encodable will not result in infite recursion **if pointers are equal**, even if it is the Same Encodable.
+// 	If an encodable copies the value it passes to its elemtn Encodables, then pointers cannot be compared, and
 //
 // Encodables return two kinds of error.
 // encio.IOError for io and corrupted data errors, and encio.Error for encoding errors.
@@ -75,8 +83,78 @@ type Encodable interface {
 	Decode(ptr unsafe.Pointer, r io.Reader) error
 }
 
-// New returns a new Encodable for encoding the type t.
-// It uses DefaultSource as a Source.
-func New(t reflect.Type, config Config) Encodable {
-	return (&DefaultSource{}).NewEncodable(t, config)
+// NewFunc is the function signature of functions that create new Encodables.
+type NewFunc func(reflect.Type, Config, Source) Encodable
+
+// New returns a new Encodable for encoding the type ty.
+func New(ty reflect.Type, config Config, src Source) Encodable {
+	ptrt := reflect.PtrTo(ty)
+	kind := ty.Kind()
+	switch {
+	// Implementers
+	case ptrt.Implements(binaryMarshalerType) && ptrt.Implements(binaryUnmarshalerType):
+		return NewBinaryMarshaler(ty)
+
+	// Specific types
+	case ty == reflectTypeType:
+		return NewType(config)
+	case ty == reflectValueType:
+		return NewValue(config, src)
+
+	// Compound-Types
+	case kind == reflect.Ptr:
+		return NewPointer(ty, config, src)
+	case kind == reflect.Interface:
+		return NewInterface(ty, config, src)
+	case kind == reflect.Struct:
+		return NewStruct(ty, config, src)
+	case kind == reflect.Array:
+		return NewArray(ty, config, src)
+	case kind == reflect.Slice:
+		return NewSlice(ty, config, src)
+	case kind == reflect.Map:
+		return NewMap(ty, config, src)
+
+	// Integer types
+	case kind == reflect.Uint8:
+		return NewUint8()
+	case kind == reflect.Uint16:
+		return NewUint16()
+	case kind == reflect.Uint32:
+		return NewUint32()
+	case kind == reflect.Uint64:
+		return NewUint64()
+	case kind == reflect.Uint:
+		return NewUint()
+	case kind == reflect.Int8:
+		return NewInt8()
+	case kind == reflect.Int16:
+		return NewInt16()
+	case kind == reflect.Int32:
+		return NewInt32()
+	case kind == reflect.Int64:
+		return NewInt64()
+	case kind == reflect.Int:
+		return NewInt()
+	case kind == reflect.Uintptr:
+		return NewUintptr()
+
+	// Float types
+	case kind == reflect.Float32:
+		return NewFloat32()
+	case kind == reflect.Float64:
+		return NewFloat64()
+	case kind == reflect.Complex64:
+		return NewComplex64()
+	case kind == reflect.Complex128:
+		return NewComplex128()
+
+	// Misc types
+	case kind == reflect.Bool:
+		return NewBool()
+	case kind == reflect.String:
+		return NewString()
+	default:
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot create encodable for type %v", ty), 0))
+	}
 }

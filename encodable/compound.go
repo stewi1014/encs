@@ -20,28 +20,26 @@ func NewPointer(ty reflect.Type, config Config, src Source) Encodable {
 	}
 
 	return &Pointer{
-		pointers: make([]unsafe.Pointer, 0, 8),
-		ty:       ty,
-		elem:     src.NewEncodable(ty.Elem(), config),
+		buff: make([]byte, 1),
+		ty:   ty,
+		elem: src.NewEncodable(ty.Elem(), config),
 	}
 }
 
 const (
-	nilPointer = -1 - iota
-	encodedPointer
+	nilPointer = -1
 )
 
 // Pointer encodes pointers to concrete types.
 type Pointer struct {
-	pointers []unsafe.Pointer
-	ty       reflect.Type
-	elem     Encodable
-	intEnc   encio.Int
+	ty   reflect.Type
+	elem Encodable
+	buff []byte
 }
 
 // Size implements Sized.
 func (e *Pointer) Size() int {
-	return e.elem.Size() + 4
+	return e.elem.Size() + 1
 }
 
 // Type implements Encodable.
@@ -52,25 +50,14 @@ func (e *Pointer) Type() reflect.Type {
 // Encode implements Encodable.
 func (e *Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
-	if len(e.pointers) == 0 {
-		// We're the first call.
-		// Wipe pointers when we exit.
-		defer e.reset()
-	}
-
 	if *(*unsafe.Pointer)(ptr) == nil {
 		// Nil pointer
-		return e.intEnc.EncodeInt32(w, nilPointer)
+		e.buff[0] = 1
+		return encio.Write(e.buff, w)
 	}
 
-	if index, found := e.hasEncoded(ptr); found {
-		// We've encoded this pointer before.
-		// Write a reference.
-		return e.intEnc.EncodeInt32(w, int32(index))
-	}
-
-	e.addEncoded(ptr)
-	if err := e.intEnc.EncodeInt32(w, encodedPointer); err != nil {
+	e.buff[0] = 0
+	if err := encio.Write(e.buff, w); err != nil {
 		return err
 	}
 
@@ -80,32 +67,20 @@ func (e *Pointer) Encode(ptr unsafe.Pointer, w io.Writer) error {
 // Decode implements Encodable.
 func (e *Pointer) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	if len(e.pointers) == 0 {
-		// We're the first call.
-		// Wipe pointers when we exit.
-		defer e.reset()
-	}
 
-	n, err := e.intEnc.DecodeInt32(r)
+	err := encio.Read(e.buff, r)
 	if err != nil {
 		return err
 	}
 
-	switch {
-	case n == nilPointer:
+	if e.buff[0] != 0 {
+		// Nil pointer
 		v := reflect.NewAt(e.ty, ptr).Elem()
 		v.Set(reflect.New(e.ty).Elem())
 		return nil
+	}
 
-	case n > 0:
-		if int(n) >= len(e.pointers) {
-			return encio.NewError(encio.ErrMalformed, fmt.Sprintf("pointer reference index is too large (reference index: %v, current references: %v", n, len(e.pointers)), 0)
-		}
-
-		*(*unsafe.Pointer)(ptr) = *(*unsafe.Pointer)(e.pointers[n])
-		return nil
-
-	case *(*unsafe.Pointer)(ptr) == nil:
+	if *(*unsafe.Pointer)(ptr) == nil {
 		reflect.NewAt(e.ty, ptr).Elem().Set(reflect.New(e.ty.Elem()))
 	}
 
@@ -114,41 +89,7 @@ func (e *Pointer) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		return err
 	}
 
-	e.addEncoded(eptr)
 	return nil
-}
-
-func (e *Pointer) reset() {
-	e.pointers = e.pointers[:0]
-}
-
-func (e *Pointer) addEncoded(ptr unsafe.Pointer) {
-	// append is too slow
-	l := len(e.pointers)
-	if l < cap(e.pointers) {
-		e.pointers = e.pointers[:l+1]
-		e.pointers[l] = ptr
-		return
-	}
-
-	nb := make([]unsafe.Pointer, l+1, cap(e.pointers)*2)
-	copy(nb, e.pointers)
-	nb[l] = ptr
-	e.pointers = nb
-}
-
-func (e *Pointer) hasEncoded(ptr unsafe.Pointer) (int, bool) { // unsafe.Pointer can never be nil!
-	// Slower for really big things, faster for small things.
-	// atleast 95% of what we're going to encode will have less than 100 pointers,
-	// and I'm not implementing this logic twice and dynamically switching between
-	// a map and slice depending on how many pointers there are.
-	for i := 0; i < len(e.pointers); i++ {
-		if e.pointers[i] == ptr {
-			return i, true
-		}
-	}
-
-	return 0, false
 }
 
 // NewMap returns a new map Encodable.
@@ -158,20 +99,17 @@ func NewMap(ty reflect.Type, config Config, src Source) *Map {
 	}
 
 	return &Map{
-		key:     src.NewEncodable(ty.Key(), config),
-		val:     src.NewEncodable(ty.Elem(), config),
-		keyBuff: reflect.New(ty.Key()).Elem(),
-		valBuff: reflect.New(ty.Elem()).Elem(),
-		t:       ty,
+		key: src.NewEncodable(ty.Key(), config),
+		val: src.NewEncodable(ty.Elem(), config),
+		t:   ty,
 	}
 }
 
 // Map is an Encodable for maps
 type Map struct {
-	key, val         Encodable
-	len              encio.Int
-	keyBuff, valBuff reflect.Value
-	t                reflect.Type
+	key, val Encodable
+	len      encio.Int
+	t        reflect.Type
 }
 
 // Size implements Encodable
@@ -197,19 +135,20 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 		return err
 	}
 
-	iter := v.MapRange()
-	e.keyBuff = reflect.New(v.Type().Key()).Elem()
-	e.valBuff = reflect.New(v.Type().Elem()).Elem()
-	for iter.Next() {
-		e.keyBuff.Set(iter.Key())
-		e.valBuff.Set(iter.Value())
+	key := reflect.New(e.t.Key()).Elem()
+	val := reflect.New(e.t.Elem()).Elem()
 
-		err := e.key.Encode(unsafe.Pointer(e.keyBuff.UnsafeAddr()), w)
+	iter := v.MapRange()
+	for iter.Next() {
+		key.Set(iter.Key())
+		val.Set(iter.Value())
+
+		err := e.key.Encode(unsafe.Pointer(key.UnsafeAddr()), w)
 		if err != nil {
 			return err
 		}
 
-		err = e.val.Encode(unsafe.Pointer(e.valBuff.UnsafeAddr()), w)
+		err = e.val.Encode(unsafe.Pointer(val.UnsafeAddr()), w)
 		if err != nil {
 			return err
 		}
@@ -238,24 +177,23 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	v := reflect.MakeMapWithSize(e.t, int(l))
+	m.Set(v)
 
 	for i := int32(0); i < l; i++ {
-		nKey := reflect.New(e.key.Type())
-		err := e.key.Decode(unsafe.Pointer(nKey.Pointer()), r)
+		nKey := reflect.New(e.key.Type()).Elem()
+		err := e.key.Decode(unsafe.Pointer(nKey.UnsafeAddr()), r)
 		if err != nil {
 			return err
 		}
 
-		nVal := reflect.New(e.val.Type())
-		err = e.val.Decode(unsafe.Pointer(nVal.Pointer()), r)
+		nVal := reflect.New(e.val.Type()).Elem()
+		err = e.val.Decode(unsafe.Pointer(nVal.UnsafeAddr()), r)
 		if err != nil {
 			return err
 		}
 
-		v.SetMapIndex(nKey.Elem(), nVal.Elem())
+		v.SetMapIndex(nKey, nVal)
 	}
-
-	m.Set(v)
 
 	return nil
 }
@@ -467,7 +405,7 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		return nil
 	}
 
-	if uintptr(l)*e.elem.Type().Size() > uintptr(encio.TooBig) {
+	if uintptr(l)*(e.elem.Type().Size()) > uintptr(encio.TooBig) {
 		return encio.IOError{
 			Err:     encio.ErrMalformed,
 			Message: fmt.Sprintf("slice of length %v (%v bytes) is too big", l, int(l)*int(e.elem.Type().Size())),
@@ -794,9 +732,7 @@ func (e StructStrict) Size() (size int) {
 }
 
 // Type implements Encodable
-func (e StructStrict) Type() reflect.Type {
-	return e.ty
-}
+func (e StructStrict) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable
 func (e StructStrict) Encode(ptr unsafe.Pointer, w io.Writer) error {

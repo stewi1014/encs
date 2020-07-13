@@ -15,8 +15,7 @@ func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
 		r:       r,
 		typeEnc: encodable.NewType(0),
-		source:  &encodable.DefaultSource{},
-		encs:    make(map[reflect.Type]encodable.Encodable),
+		source:  encodable.NewCachingSource(encodable.NewRecursiveSource(encodable.New)),
 	}
 }
 
@@ -25,7 +24,6 @@ type Decoder struct {
 	mutex   sync.Mutex
 	typeEnc *encodable.Type
 	source  encodable.Source
-	encs    map[reflect.Type]encodable.Encodable
 }
 
 func (d *Decoder) Decode(v interface{}) error {
@@ -59,11 +57,5 @@ func (d *Decoder) Decode(v interface{}) error {
 		return encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot set %v to received type %v", val.Type(), ty), 0)
 	}
 
-	enc, ok := d.encs[ty]
-	if !ok {
-		enc = d.source.NewEncodable(ty, 0)
-		d.encs[ty] = enc
-	}
-
-	return enc.Decode(unsafe.Pointer(val.UnsafeAddr()), d.r)
+	return d.source.NewEncodable(ty, 0).Decode(unsafe.Pointer(val.UnsafeAddr()), d.r)
 }

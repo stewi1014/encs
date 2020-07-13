@@ -135,7 +135,7 @@ func BenchmarkType_Encode(b *testing.B) {
 func TestValue(t *testing.T) {
 	values := testValues()
 
-	e := encodable.NewValue(0, &encodable.DefaultSource{})
+	e := encodable.NewValue(0, encodable.NewRecursiveSource(encodable.New))
 
 	for i := range values {
 		buff := new(bytes.Buffer)
@@ -163,7 +163,7 @@ func BenchmarkValue_Decode(b *testing.B) {
 	buff := new(buffer)
 
 	// populate buffer
-	e := encodable.NewValue(0, &encodable.DefaultSource{})
+	e := encodable.NewValue(0, encodable.NewRecursiveSource(encodable.New))
 	for i := 0; i < encodeNum; i++ {
 		err := e.Encode(unsafe.Pointer(&values[i%len(values)]), buff)
 		if err != nil {
@@ -188,7 +188,7 @@ func BenchmarkValue_Decode(b *testing.B) {
 
 func BenchmarkValue_Encode(b *testing.B) {
 	values := testValues()
-	e := encodable.NewValue(0, &encodable.DefaultSource{})
+	e := encodable.NewValue(0, encodable.NewRecursiveSource(encodable.New))
 
 	b.ResetTimer()
 	var j int

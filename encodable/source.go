@@ -146,8 +146,8 @@ const (
 // Recursive is an encodable that resolved recursive values and types.
 //
 // Instances of Encodable are allowed to assume that calls to unknown element Encodables will not result in
-// a nested call to themselves
-// It avoids the creating of the wrapped Encodable
+// a nested call to themselves.
+// It avoids the creating of the wrapped Encodable.
 type Recursive struct {
 	new      func() Encodable
 	ty       reflect.Type

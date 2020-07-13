@@ -10,6 +10,9 @@ linters:
     - misspell
     - prealloc
     - godox
+    - unparam
+    - godot
+    - govet
 
 issues:
   exclude-rules:
@@ -22,6 +25,9 @@ linters-settings:
     enabled-tags:
       - performance
       - opinionated
+      - experimental
+      - style
+      - diagnostic
   maligned:
     suggest-new: true
   misspell:

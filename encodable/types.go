@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// Type constants
+// Type constants.
 var (
-	// Builtin types
+	// Builtin types.
 	intType        = reflect.TypeOf(int(0))
 	int8Type       = reflect.TypeOf(int8(0))
 	int16Type      = reflect.TypeOf(int16(0))
@@ -27,14 +27,14 @@ var (
 	stringType     = reflect.TypeOf(string(""))
 	boolType       = reflect.TypeOf(bool(true))
 
-	// Package types
+	// Package types.
 	timeTimeType     = reflect.TypeOf(time.Time{})
 	timeDurationType = reflect.TypeOf(time.Duration(0))
 	reflectTypeType  = reflect.TypeOf(new(reflect.Type)).Elem()
 	reflectValueType = reflect.TypeOf(new(reflect.Value)).Elem()
 	IDType           = reflect.TypeOf(ID{})
 
-	// Interface type constants
+	// Interface type constants.
 	binaryMarshalerType   = reflect.TypeOf(new(encoding.BinaryMarshaler)).Elem()
 	binaryUnmarshalerType = reflect.TypeOf(new(encoding.BinaryUnmarshaler)).Elem()
 )

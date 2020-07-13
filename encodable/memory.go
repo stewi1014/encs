@@ -8,7 +8,7 @@ import (
 	"github.com/stewi1014/encs/encio"
 )
 
-// NewMemory returns a new Memory encoder
+// NewMemory returns a new Memory encoder.
 func NewMemory(size int) *Memory {
 	return &Memory{
 		buff: reflect.SliceHeader{
@@ -26,24 +26,24 @@ type Memory struct {
 	buff reflect.SliceHeader
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Memory) Type() reflect.Type {
 	return nil
 }
 
-// Size implemenets Encodable
+// Size implemenets Encodable.
 func (e *Memory) Size() int {
 	return e.buff.Cap
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Memory) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	e.buff.Data = uintptr(ptr)
 	return encio.Write(*(*[]byte)(unsafe.Pointer(&e.buff)), w)
 }
 
-// Decode implements Decodable
+// Decode implements Decodable.
 func (e *Memory) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	e.buff.Data = uintptr(ptr)

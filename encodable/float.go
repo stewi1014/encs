@@ -17,22 +17,22 @@ func NewFloat32() *Float32 {
 	}
 }
 
-// Float32 is an Encodable for float32s
+// Float32 is an Encodable for float32s.
 type Float32 struct {
 	buff []byte
 }
 
-// Size implemenets Sized
+// Size implemenets Encodable.
 func (e *Float32) Size() int {
 	return 4
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Float32) Type() reflect.Type {
 	return float32Type
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Float32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	bits := *(*uint32)(ptr)
@@ -44,7 +44,7 @@ func (e *Float32) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return encio.Write(e.buff, w)
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *Float32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	if err := encio.Read(e.buff, r); err != nil {
@@ -66,22 +66,22 @@ func NewFloat64() *Float64 {
 	}
 }
 
-// Float64 is an Encodable for float64s
+// Float64 is an Encodable for float64s.
 type Float64 struct {
 	buff []byte
 }
 
-// Size implemenets Sized
+// Size implemenets Encodable.
 func (e *Float64) Size() int {
 	return 8
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Float64) Type() reflect.Type {
 	return float64Type
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Float64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	bits := *(*uint64)(ptr)
@@ -97,7 +97,7 @@ func (e *Float64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return encio.Write(e.buff, w)
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *Float64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	if err := encio.Read(e.buff, r); err != nil {
@@ -116,29 +116,29 @@ func (e *Float64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	return nil
 }
 
-// NewComplex64 returns a new complex128 Encodable
+// NewComplex64 returns a new complex128 Encodable.
 func NewComplex64() *Complex64 {
 	return &Complex64{
 		buff: make([]byte, 8),
 	}
 }
 
-// Complex64 is an Encodable for complex64s
+// Complex64 is an Encodable for complex64s.
 type Complex64 struct {
 	buff []byte
 }
 
-// Size implemenets Sized
+// Size implemenets Encodable.
 func (e *Complex64) Size() int {
 	return 8
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Complex64) Type() reflect.Type {
 	return complex64Type
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Complex64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	bits := *(*uint32)(ptr)
@@ -156,7 +156,7 @@ func (e *Complex64) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return encio.Write(e.buff, w)
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *Complex64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	if err := encio.Read(e.buff, r); err != nil {
@@ -177,29 +177,29 @@ func (e *Complex64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	return nil
 }
 
-// NewComplex128 returns a new complex128 Encodable
+// NewComplex128 returns a new complex128 Encodable.
 func NewComplex128() *Complex128 {
 	return &Complex128{
 		buff: make([]byte, 16),
 	}
 }
 
-// Complex128 is an Encodable for complex128s
+// Complex128 is an Encodable for complex128s.
 type Complex128 struct {
 	buff []byte
 }
 
-// Size implemenets Sized
+// Size implemenets Encodable.
 func (e *Complex128) Size() int {
 	return 16
 }
 
-// Type implements Encodable
+// Type implements Encodable.
 func (e *Complex128) Type() reflect.Type {
 	return complex128Type
 }
 
-// Encode implements Encodable
+// Encode implements Encodable.
 func (e *Complex128) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	bits := *(*uint64)(ptr)
@@ -225,7 +225,7 @@ func (e *Complex128) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	return encio.Write(e.buff, w)
 }
 
-// Decode implements Encodable
+// Decode implements Encodable.
 func (e *Complex128) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	if err := encio.Read(e.buff, r); err != nil {

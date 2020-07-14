@@ -8,32 +8,9 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/stewi1014/encs/encio"
 	"github.com/stewi1014/encs/encodable"
 )
-
-func permutate(buff *[]encodable.Config, options []encodable.Config, c encodable.Config) {
-	if len(options) == 0 {
-		*buff = append(*buff, c)
-		return
-	}
-
-	permutate(buff, options[1:], c&^options[0])
-	permutate(buff, options[1:], c|options[0])
-}
-
-var configPermutations = func() []encodable.Config {
-	options := []encodable.Config{
-		encodable.LooseTyping,
-	}
-
-	var buff []encodable.Config
-	permutate(&buff, options, 0)
-	return buff
-}()
-
-func getDescription(desc string, config encodable.Config) string {
-	return fmt.Sprintf("%v %b", desc, config)
-}
 
 type RecursiveTest1 struct {
 	N *RecursiveTest1
@@ -123,6 +100,30 @@ func TestRecursiveTypes(t *testing.T) {
 	}
 }
 
+func permutate(buff *[]encodable.Config, options []encodable.Config, c encodable.Config) {
+	if len(options) == 0 {
+		*buff = append(*buff, c)
+		return
+	}
+
+	permutate(buff, options[1:], c&^options[0])
+	permutate(buff, options[1:], c|options[0])
+}
+
+var configPermutations = func() []encodable.Config {
+	options := []encodable.Config{
+		encodable.LooseTyping,
+	}
+
+	var buff []encodable.Config
+	permutate(&buff, options, 0)
+	return buff
+}()
+
+func getDescription(desc string, config encodable.Config) string {
+	return fmt.Sprintf("%v %b", desc, config)
+}
+
 func isNil(ty reflect.Value) bool {
 	switch ty.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Slice, reflect.Ptr, reflect.Map:
@@ -169,10 +170,10 @@ func testGeneric(v, want interface{}, e encodable.Encodable, t *testing.T) {
 
 	w := reflect.ValueOf(want).Elem()
 
-	if !reflect.DeepEqual(w.Interface(), decodedValue.Interface()) {
+	if !encio.DeepEqual(w.Interface(), decodedValue.Interface()) {
 		wNil := isNil(w)
 		dNil := isNil(decodedValue)
-		t.Errorf("%v (%v, nil: %v) and %v (%v, nil: %v) are not equal", w.Type(), w, wNil, decodedValue.Type(), decodedValue, dNil)
+		t.Errorf("%v (%v, nil: %v) and %v (%v, nil: %v) are not equal", w.Type(), w.String(), wNil, decodedValue.Type(), decodedValue.String(), dNil)
 	}
 
 	if buff.Len() > 0 {

@@ -309,17 +309,12 @@ func NewRecursive(ty reflect.Type, ptrs *Pointers, newFunc func() *Encodable) *R
 		r.kind = rReference
 	}
 
-	if ty == reflectValueType {
-		r.kind = rReflectValue
-	}
-
 	return r
 }
 
 // recursive kinds.
 const (
 	rReference = 1 << iota
-	rReflectValue
 )
 
 // encoded meanings.
@@ -376,12 +371,9 @@ func (e *Recursive) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	}
 
 	// Check reference types.
-	if e.kind == rReference {
-		val := reflect.NewAt(e.ty, ptr).Elem()
-		if !val.IsNil() {
-			if index, has := e.ptrs.HasReference(val); has {
-				return e.ptrs.EncodeInt32(w, index)
-			}
+	if val := reflect.NewAt(e.ty, ptr).Elem(); e.kind == rReference && !val.IsNil() {
+		if index, has := e.ptrs.HasReference(val); has {
+			return e.ptrs.EncodeInt32(w, index)
 		}
 	}
 

@@ -16,7 +16,7 @@ func TestFloat32(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -30,7 +30,7 @@ func TestFloat64(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -44,7 +44,7 @@ func TestComplex64(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -58,7 +58,7 @@ func TestComplex128(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }

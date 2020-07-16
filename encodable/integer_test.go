@@ -13,7 +13,7 @@ import (
 func TestUint8(t *testing.T) {
 	enc := encodable.NewUint8()
 	for tC := uint8(0); ; tC++ {
-		testGeneric(&tC, &tC, enc, t)
+		testEqual(&tC, &tC, enc, t)
 
 		if tC == 1<<8-1 {
 			break
@@ -24,7 +24,7 @@ func TestUint8(t *testing.T) {
 func TestUint16(t *testing.T) {
 	enc := encodable.NewUint16()
 	for tC := uint16(0); ; tC++ {
-		testGeneric(&tC, &tC, enc, t)
+		testEqual(&tC, &tC, enc, t)
 
 		if tC == 1<<16-1 {
 			break
@@ -41,7 +41,7 @@ func TestUint32(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -55,7 +55,7 @@ func TestUint64(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -69,7 +69,7 @@ func TestUint(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -77,7 +77,7 @@ func TestUint(t *testing.T) {
 func TestInt8(t *testing.T) {
 	enc := encodable.NewInt8()
 	for tC := int8(-1 << 7); ; tC++ {
-		testGeneric(&tC, &tC, enc, t)
+		testEqual(&tC, &tC, enc, t)
 
 		if tC == 1<<7-1 {
 			break
@@ -88,7 +88,7 @@ func TestInt8(t *testing.T) {
 func TestInt16(t *testing.T) {
 	enc := encodable.NewInt16()
 	for tC := int16(-1 << 15); ; tC++ {
-		testGeneric(&tC, &tC, enc, t)
+		testEqual(&tC, &tC, enc, t)
 
 		if tC == 1<<15-1 {
 			break
@@ -105,7 +105,7 @@ func TestInt32(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -119,7 +119,7 @@ func TestInt64(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -133,7 +133,7 @@ func TestInt(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -229,7 +229,7 @@ func TestUintptr(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }

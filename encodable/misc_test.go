@@ -70,7 +70,7 @@ func TestString(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprintf("String length %v", len(tC)), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }
@@ -80,7 +80,7 @@ func TestBool(t *testing.T) {
 	enc := encodable.NewBool()
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testGeneric(&tC, &tC, enc, t)
+			testEqual(&tC, &tC, enc, t)
 		})
 	}
 }

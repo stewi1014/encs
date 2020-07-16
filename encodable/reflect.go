@@ -75,6 +75,10 @@ add:
 // ID is a 128 bit ID for a given reflect.Type.
 type ID [2]uint64
 
+func (id ID) String() string {
+	return fmt.Sprintf("%x-%x", id[0], id[1])
+}
+
 // GetID returns a unique ID for a given reflect.Type.
 func GetID(t reflect.Type, config Config) (id ID) {
 	if t == nil {
@@ -122,6 +126,10 @@ func glob(t reflect.Type, config Config, seen map[reflect.Type]int) (g string) {
 	}
 
 	g += t.Kind().String()
+
+	if config&LooseTyping == 0 {
+		g += t.Name()
+	}
 
 	// We allow ourselves to follow a recursive type once
 	if seen[t] > 1 {
@@ -270,6 +278,10 @@ func (e *Type) Encode(ptr unsafe.Pointer, w io.Writer) error {
 		e.idByType[ty] = id
 	}
 
+	if e.config&LogTypes != 0 {
+		fmt.Fprintf(encio.Warnings, "type %v send with id %v (previously seen: %v)\n", ty.String(), id, ok)
+	}
+
 	return e.idEnc.EncodeUUID(w, id)
 }
 
@@ -283,7 +295,13 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	ty, ok := e.typeByID[id]
-	if !ok && *(*reflect.Type)(ptr) != nil {
+	if ok {
+		// Found the type
+		*(*reflect.Type)(ptr) = ty
+		return nil
+	}
+
+	if *(*reflect.Type)(ptr) != nil {
 		// No match, check if the existing type is a match.
 		ty = *(*reflect.Type)(ptr)
 		existing := GetID(ty, e.config)
@@ -313,12 +331,7 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		}
 	}
 
-	if !ok {
-		return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %016X. Is it registered?", id), 0)
-	}
-
-	*(*reflect.Type)(ptr) = ty
-	return nil
+	return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %016X. Is it registered?", id), 0)
 }
 
 // NewValue returns a new reflect.Value encodable.
@@ -400,21 +413,19 @@ func (e *Value) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	enc := e.src.NewEncodable(ty, e.config, nil)
 
-	v := *(*reflect.Value)(ptr)
-	if !v.CanAddr() {
+	v := (*reflect.Value)(ptr)
+	if !v.CanAddr() || v.Type() != ty {
 		n := reflect.New(ty).Elem()
 		if v.IsValid() && ty == v.Type() {
-			n.Set(v)
+			n.Set(*v)
 		}
-		v = n
+		*v = n
 	}
 
-	if err := (*enc).Decode(unsafe.Pointer(v.UnsafeAddr()), r); err != nil {
+	if err := (*enc).Decode(unsafe.Pointer((*v).UnsafeAddr()), r); err != nil {
 		// I no longer trust whatever is in the value
 		*(*reflect.Value)(ptr) = reflect.Value{}
 		return err
 	}
-
-	*(*reflect.Value)(ptr) = v
 	return nil
 }

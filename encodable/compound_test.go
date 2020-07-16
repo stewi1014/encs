@@ -35,7 +35,7 @@ func TestPointer(t *testing.T) {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
 				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
 				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-				testGeneric(tC.encode, tC.encode, *enc, t)
+				testEqual(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -76,7 +76,7 @@ func TestMap(t *testing.T) {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
 				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
 				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-				testGeneric(tC.encode, tC.encode, *enc, t)
+				testEqual(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -107,7 +107,7 @@ func TestInterface(t *testing.T) {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
 				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
 				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-				testGeneric(tC.encode, tC.encode, *enc, t)
+				testEqual(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -157,7 +157,7 @@ func TestSlice(t *testing.T) {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
 				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
 				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-				testGeneric(tC.encode, tC.encode, *enc, t)
+				testEqual(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -200,7 +200,7 @@ func TestArray(t *testing.T) {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
 				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
 				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-				testGeneric(tC.encode, tC.encode, *enc, t)
+				testEqual(tC.encode, tC.encode, *enc, t)
 			})
 		}
 	}
@@ -279,7 +279,7 @@ func TestStruct(t *testing.T) {
 			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
 				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
 				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-				testGeneric(tC.encode, tC.want, *enc, t)
+				testEqual(tC.encode, tC.want, *enc, t)
 			})
 		}
 	}

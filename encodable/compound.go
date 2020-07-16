@@ -311,7 +311,7 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		// If loose typing is enabled, then there's a possibility the decoded type doesn't implement the interface.
 		return encio.NewError(
 			encio.ErrBadType,
-			fmt.Sprintf("%v was sent to us inside the %v interface, but %v does not implement %v! The types must be different, has a function been added to the interface?", rty, i.Type(), rty, i.Type()),
+			fmt.Sprintf("%v was sent to us inside the %v interface, but %v does not implement %v!", rty, i.Type(), rty, i.Type()),
 			0,
 		)
 	}
@@ -630,7 +630,7 @@ func (e *StructLoose) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if uintptr(l)*4 > encio.TooBig { // Don't include size of encoded struct member, way too much work here.
+	if uintptr(l)*8 > encio.TooBig { // Don't include size of encoded struct members, way too much work here.
 		return encio.NewError(encio.ErrMalformed, fmt.Sprintf("%v struct fields is too many to decode", l), 0)
 	}
 

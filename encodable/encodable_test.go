@@ -2,13 +2,14 @@ package encodable_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"testing"
 	"unsafe"
 
-	"github.com/kr/pretty"
+	"github.com/maxatome/go-testdeep/td"
 	"github.com/stewi1014/encs/encodable"
 )
 
@@ -36,7 +37,7 @@ func getDescription(desc string, config encodable.Config) string {
 	return fmt.Sprintf("%v %b", desc, config)
 }
 
-func runTest(v interface{}, enc encodable.Encodable, t *testing.T) interface{} {
+func runTest(v interface{}, enc encodable.Encodable, t *testing.T) (got interface{}, encode error, decode error) {
 	val := reflect.ValueOf(v)
 	if val.Kind() != reflect.Ptr {
 		panic("cannot run test with value not passed by reference")
@@ -51,8 +52,7 @@ func runTest(v interface{}, enc encodable.Encodable, t *testing.T) interface{} {
 
 	err := enc.Encode(unsafe.Pointer(val.UnsafeAddr()), buff)
 	if err != nil {
-		t.Fatal(err)
-		return nil
+		return nil, err, nil
 	}
 
 	if size := enc.Size(); size >= 0 && buff.Len() > size {
@@ -62,27 +62,43 @@ func runTest(v interface{}, enc encodable.Encodable, t *testing.T) interface{} {
 	decoded := reflect.New(val.Type()).Elem()
 	err = enc.Decode(unsafe.Pointer(decoded.UnsafeAddr()), buff)
 	if err != nil {
-		t.Fatal(err)
-		return nil
+		return nil, nil, err
 	}
 
 	if buff.Len() > 0 {
 		t.Errorf("data remaining in buffer %v", buff.Bytes())
 	}
 
-	return decoded.Addr().Interface()
+	return decoded.Addr().Interface(), nil, nil
 }
 
-func testGeneric(v, want interface{}, e encodable.Encodable, t *testing.T) {
-	got := runTest(v, e, t)
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("%v (%v) and %v (%v) are not equal", reflect.TypeOf(want), reflect.ValueOf(want).String(), reflect.TypeOf(want), reflect.ValueOf(want).String())
-		fmt.Println("Got:")
-		fmt.Println(pretty.Sprint(got))
-		fmt.Println("Wanted:")
-		fmt.Println(pretty.Sprint(want))
+func testEncodeError(v interface{}, want error, enc encodable.Encodable, t *testing.T) {
+	_, eerr, _ := runTest(v, enc, t)
+	if !errors.Is(eerr, want) {
+		t.Errorf("wanted error %v on encode, but got %v instead", want, eerr)
 	}
+}
+
+func testDecodeError(v interface{}, want error, enc encodable.Encodable, t *testing.T) {
+	_, _, derr := runTest(v, enc, t)
+	if !errors.Is(derr, want) {
+		t.Errorf("wanted error %v on encode, but got %v instead", want, derr)
+	}
+}
+
+func testNoErr(v interface{}, enc encodable.Encodable, t *testing.T) interface{} {
+	got, eerr, derr := runTest(v, enc, t)
+	if eerr != nil {
+		t.Error(eerr)
+	} else if derr != nil {
+		t.Error(derr)
+	}
+
+	return got
+}
+
+func testEqual(v, want interface{}, e encodable.Encodable, t *testing.T) bool {
+	return td.Cmp(t, testNoErr(v, e, t), want)
 }
 
 type buffer struct {

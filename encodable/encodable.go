@@ -30,6 +30,10 @@ const (
 	// LooseTyping will make encs ignore struct fields, interface methods and integer, float and complex sizes when resolving type equality.
 	// TODO: Implement int, float and complex sizing flexibility.
 	LooseTyping Config = 1 >> iota
+
+	// LogTypes will make Type Encodables log types and their generated ids when encoding.
+	// It is helpful for debugging a type that cannot be resolved on Decode.
+	LogTypes
 )
 
 const (

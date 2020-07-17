@@ -493,12 +493,12 @@ func (a structMembers) Len() int           { return len(a) }
 func (a structMembers) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a structMembers) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
-func structFields(ty reflect.Type, structTag string) []reflect.StructField {
+func structFields(ty reflect.Type) []reflect.StructField {
 	fields := make(structMembers, 0, ty.NumField())
 	for i := 0; i < ty.NumField(); i++ {
 		field := ty.Field(i)
 
-		tagStr, tagged := field.Tag.Lookup(structTag)
+		tagStr, tagged := field.Tag.Lookup(StructTag)
 		var tag bool
 		if tagged {
 			parsed, err := strconv.ParseBool(tagStr)
@@ -540,7 +540,7 @@ func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
 
 	// Take a hash of each field name, generate an ID from it,
 	// and populate fields with the id, Encodable and offset for the field.
-	fields := structFields(ty, StructTag)
+	fields := structFields(ty)
 	hasher := crc32.NewIEEE()
 	for _, field := range fields {
 		if err := encio.Write([]byte(field.Name), hasher); err != nil {
@@ -676,7 +676,7 @@ func NewStructStrict(ty reflect.Type, config Config, src Source) *StructStrict {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", ty), 0))
 	}
 
-	fields := structFields(ty, StructTag)
+	fields := structFields(ty)
 	s := &StructStrict{
 		ty:     ty,
 		fields: make([]strictField, len(fields)),

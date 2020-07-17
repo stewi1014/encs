@@ -9,9 +9,6 @@ import (
 	"github.com/stewi1014/encs/encio"
 )
 
-// Encoders for basic types.
-// These encoders have undefined behaviour if given the wrong type.
-
 // NewUint8 returns a new uint8 Encodable.
 func NewUint8() *Uint8 {
 	return &Uint8{}

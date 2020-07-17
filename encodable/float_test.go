@@ -2,8 +2,10 @@ package encodable_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
+	"github.com/maxatome/go-testdeep/td"
 	"github.com/stewi1014/encs/encodable"
 )
 
@@ -59,6 +61,55 @@ func TestComplex128(t *testing.T) {
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
 			testEqual(&tC, &tC, enc, t)
+		})
+	}
+}
+
+func TestVarComplex(t *testing.T) {
+	testCases := []struct {
+		desc string
+		enc  interface{}
+		dec  interface{}
+	}{
+		{
+			desc: "128 to 64",
+			enc:  complex128(3 + 4i),
+			dec:  complex64(3 + 4i),
+		},
+		{
+			desc: "64 to 64",
+			enc:  complex64(3 + 4i),
+			dec:  complex64(3 + 4i),
+		},
+		{
+			desc: "64 to 128",
+			enc:  complex64(3 + 4i),
+			dec:  complex128(3 + 4i),
+		},
+		{
+			desc: "128 to 128",
+			enc:  complex128(3 + 4i),
+			dec:  complex128(3 + 4i),
+		},
+	}
+
+	src := encodable.NewCachingSource(encodable.SourceFromFunc(func(ty reflect.Type, config encodable.Config, source encodable.Source) *encodable.Encodable {
+		enc := encodable.Encodable(encodable.NewVarComplex(ty))
+		return &enc
+	}))
+
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			decodeValue := reflect.New(reflect.TypeOf(tC.dec)).Elem()
+			encodedValue := reflect.New(reflect.TypeOf(tC.enc)).Elem()
+			encodedValue.Set(reflect.ValueOf(tC.enc))
+
+			enc := src.NewEncodable(encodedValue.Type(), 0, nil)
+			dec := src.NewEncodable(decodeValue.Type(), 0, nil)
+
+			runTestNoErr(encodedValue, decodeValue, *enc, *dec, t)
+
+			td.Cmp(t, decodeValue.Interface(), tC.dec)
 		})
 	}
 }

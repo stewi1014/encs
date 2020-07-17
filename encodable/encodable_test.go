@@ -2,7 +2,6 @@ package encodable_test
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -13,81 +12,95 @@ import (
 	"github.com/stewi1014/encs/encodable"
 )
 
-func permutate(buff *[]encodable.Config, options []encodable.Config, c encodable.Config) {
+// permuatteConfig returns all permutations of configuration with the given options.
+func permutateConfig(buff *[]encodable.Config, c encodable.Config, options []encodable.Config) []encodable.Config {
+	if buff == nil {
+		buff = new([]encodable.Config)
+	}
 	if len(options) == 0 {
 		*buff = append(*buff, c)
-		return
+		return *buff
 	}
 
-	permutate(buff, options[1:], c&^options[0])
-	permutate(buff, options[1:], c|options[0])
+	permutateConfig(buff, c&^options[0], options[1:])
+	permutateConfig(buff, c|options[0], options[1:])
+
+	return *buff
 }
 
-var configPermutations = func() []encodable.Config {
-	options := []encodable.Config{
-		encodable.LooseTyping,
-	}
+// configPermutations is the list of different configuration options to be tested with.
+var configPermutations = permutateConfig(nil, 0, []encodable.Config{
+	encodable.LooseTyping,
+})
 
-	var buff []encodable.Config
-	permutate(&buff, options, 0)
-	return buff
-}()
-
+// getDescription adds the configuration to a test name.
 func getDescription(desc string, config encodable.Config) string {
-	return fmt.Sprintf("%v %b", desc, config)
+	return fmt.Sprintf("%v %8b", desc, config)
 }
 
-func runTest(v interface{}, enc encodable.Encodable, t *testing.T) (got interface{}, encode error, decode error) {
-	val := reflect.ValueOf(v)
-	if val.Kind() != reflect.Ptr {
-		panic("cannot run test with value not passed by reference")
+func runTest(encVal, decVal reflect.Value, enc, dec encodable.Encodable, t *testing.T) (encodeErr, decodeErr error) {
+	if encVal.Type() != enc.Type() {
+		t.Errorf("encoder returns type %v, but type to encode is %v", enc.Type().String(), encVal.Type().String())
 	}
-	val = val.Elem()
 
-	if enc.Type() != val.Type() {
-		t.Errorf("Type() returns %v but type to encode is %v", enc.Type(), val.Type())
+	if decVal.Type() != dec.Type() {
+		t.Errorf("decoder returns type %v, but type to decode is %v", dec.Type().String(), decVal.Type().String())
+	}
+
+	if !encVal.CanAddr() || !decVal.CanAddr() {
+		t.Fatalf("values given to test with must be addressable")
 	}
 
 	buff := new(bytes.Buffer)
 
-	err := enc.Encode(unsafe.Pointer(val.UnsafeAddr()), buff)
+	err := enc.Encode(unsafe.Pointer(encVal.UnsafeAddr()), buff)
 	if err != nil {
-		return nil, err, nil
+		return err, nil
 	}
 
 	if size := enc.Size(); size >= 0 && buff.Len() > size {
 		t.Errorf("Size() returns %v but %v bytes were written", size, buff.Len())
 	}
 
-	decoded := reflect.New(val.Type()).Elem()
-	err = enc.Decode(unsafe.Pointer(decoded.UnsafeAddr()), buff)
+	err = dec.Decode(unsafe.Pointer(decVal.UnsafeAddr()), buff)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if buff.Len() > 0 {
-		t.Errorf("data remaining in buffer %v", buff.Bytes())
+		t.Errorf("data remaining in buffer after decode: %v", buff.Bytes())
 	}
 
-	return decoded.Addr().Interface(), nil, nil
+	return nil, nil
 }
 
-func testEncodeError(v interface{}, want error, enc encodable.Encodable, t *testing.T) {
-	_, eerr, _ := runTest(v, enc, t)
-	if !errors.Is(eerr, want) {
-		t.Errorf("wanted error %v on encode, but got %v instead", want, eerr)
+func runTestNoErr(encVal, decVal reflect.Value, enc, dec encodable.Encodable, t *testing.T) {
+	encErr, decErr := runTest(encVal, decVal, enc, dec, t)
+	if encErr != nil {
+		t.Error(encErr)
+		return
+	}
+	if decErr != nil {
+		t.Error(decErr)
 	}
 }
 
-func testDecodeError(v interface{}, want error, enc encodable.Encodable, t *testing.T) {
-	_, _, derr := runTest(v, enc, t)
-	if !errors.Is(derr, want) {
-		t.Errorf("wanted error %v on encode, but got %v instead", want, derr)
+func runSingle(val interface{}, enc encodable.Encodable, t *testing.T) (got interface{}, encode, decode error) {
+	encVal := reflect.ValueOf(val)
+	if encVal.Kind() != reflect.Ptr {
+		panic("cannot run test with value not passed by reference")
 	}
+	encVal = encVal.Elem()
+
+	decVal := reflect.New(encVal.Type()).Elem()
+
+	encode, decode = runTest(encVal, decVal, enc, enc, t)
+	got = decVal.Addr().Interface()
+	return
 }
 
 func testNoErr(v interface{}, enc encodable.Encodable, t *testing.T) interface{} {
-	got, eerr, derr := runTest(v, enc, t)
+	got, eerr, derr := runSingle(v, enc, t)
 	if eerr != nil {
 		t.Error(eerr)
 	} else if derr != nil {
@@ -97,8 +110,8 @@ func testNoErr(v interface{}, enc encodable.Encodable, t *testing.T) interface{}
 	return got
 }
 
-func testEqual(v, want interface{}, e encodable.Encodable, t *testing.T) bool {
-	return td.Cmp(t, testNoErr(v, e, t), want)
+func testEqual(v, want interface{}, e encodable.Encodable, t *testing.T) {
+	td.Cmp(t, testNoErr(v, e, t), want)
 }
 
 type buffer struct {

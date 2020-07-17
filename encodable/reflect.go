@@ -72,6 +72,29 @@ add:
 	return nil
 }
 
+// GetID returns a unique ID for a given reflect.Type.
+func GetID(ty reflect.Type, config Config) (id ID) {
+	if ty == nil {
+		return ID{0, 0}
+	}
+
+	hasher := crc64.New(crc64.MakeTable(crc64.ISO))
+
+	// First half is the loose glob.
+	if err := encio.Write([]byte(looseGlob(ty, nil)), hasher); err != nil {
+		panic(err)
+	}
+	id[0] = hasher.Sum64()
+
+	// Second half is the details about the types kind
+	hasher.Reset()
+	if err := encio.Write([]byte(strictGlob(ty, nil)), hasher); err != nil {
+		panic(err)
+	}
+	id[1] = hasher.Sum64()
+	return
+}
+
 // ID is a 128 bit ID for a given reflect.Type.
 type ID [2]uint64
 
@@ -79,66 +102,140 @@ func (id ID) String() string {
 	return fmt.Sprintf("%x-%x", id[0], id[1])
 }
 
-// GetID returns a unique ID for a given reflect.Type.
-func GetID(t reflect.Type, config Config) (id ID) {
-	if t == nil {
-		return ID{0, 0}
-	}
-
-	hasher := crc64.New(crc64.MakeTable(crc64.ISO))
-
-	// First half is the hashed name
-	if err := encio.Write([]byte(name(t)), hasher); err != nil {
-		panic(err)
-	}
-	id[0] = hasher.Sum64()
-
-	// Second half is the details about the types kind
-	hasher.Reset()
-	if err := encio.Write([]byte(glob(t, config, nil)), hasher); err != nil {
-		panic(err)
-	}
-	id[1] = hasher.Sum64()
-	return
-}
-
-// name returns the name of a named type. For unnamed types it returns their normal.
-func name(t reflect.Type) string {
-	if t.Kind() == reflect.Ptr {
-		return "*" + name(t.Elem())
-	}
-	pkg := t.PkgPath()
-	if pkg != "" {
-		return pkg + "." + t.Name()
-	}
-	n := t.Name()
-	if n != "" {
-		return n
-	}
-	return t.String()
-}
-
-// glob returns a glob of data containing as much unique information about the type as possible.
-// Used for comparisons; only the hash of this is used.
-func glob(t reflect.Type, config Config, seen map[reflect.Type]int) (g string) {
+// looseGlob returns a glob of data which should loosely identify types.
+// int* uint* and float* are considered equal.
+// complex64 and complex128 are considered equal.
+// structs are considered equal if they have the same name.
+// interfaces are considered equal if the have the same name.
+func looseGlob(ty reflect.Type, seen map[reflect.Type]int) (str string) {
 	if seen == nil {
 		seen = make(map[reflect.Type]int)
 	}
 
-	g += t.Kind().String()
+	switch ty.Kind() {
+	case reflect.Invalid:
+		str += "invalid"
+		return
 
-	if config&LooseTyping == 0 {
-		g += t.Name()
-	}
+	case reflect.Bool:
+		str += "bool"
+		return
 
-	// We allow ourselves to follow a recursive type once
-	if seen[t] > 1 {
+	case reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64:
+		str += "number"
+		return
+
+	case reflect.Complex64,
+		reflect.Complex128:
+		str += "complex"
 		return
 	}
-	seen[t]++
 
-	switch t.Kind() {
-	// Simple types, no extra information to add.
+	seen[ty]++
+
+	switch ty.Kind() {
+	case reflect.Array:
+		str += "array" + strconv.Itoa(ty.Len()) + looseGlob(ty.Elem(), seen)
+		return
+
+	case reflect.Chan:
+		str += "chan" + looseGlob(ty.Elem(), seen)
+		return
+
+	case reflect.Func:
+		for i := 0; i < ty.NumIn(); i++ {
+			str += looseGlob(ty.In(i), seen)
+		}
+
+		// Without this, moving the first return value to the last input value
+		// would look like an identical function.
+		str += "out"
+
+		for i := 0; i < ty.NumOut(); i++ {
+			str += looseGlob(ty.Out(i), seen)
+		}
+		return
+
+	case reflect.Interface:
+		if ty.Name() != "" {
+			str += ty.PkgPath() + "." + ty.Name()
+			return
+		}
+
+		// Unlike struct's Field() method, Method() returns in lexographical order,
+		// so we don't have to worry about order.
+		for i := 0; i < ty.NumMethod(); i++ {
+			m := ty.Method(i)
+			str += m.Name + looseGlob(m.Type, seen)
+		}
+
+		return
+
+	case reflect.Map:
+		str += "map[" + looseGlob(ty.Key(), seen) + "]" + looseGlob(ty.Elem(), seen)
+		return
+
+	case reflect.Ptr:
+		str += "*" + looseGlob(ty.Elem(), seen)
+		return
+
+	case reflect.Slice:
+		str += "[]" + looseGlob(ty.Elem(), seen)
+		return
+
+	case reflect.String:
+		str += "string"
+		return
+
+	case reflect.Struct:
+		if ty.Name() != "" {
+			str += ty.PkgPath() + "." + ty.Name()
+			return
+		}
+
+		fields := structFields(ty)
+
+		for _, field := range fields {
+			str += field.Name + looseGlob(field.Type, seen)
+		}
+
+		return
+
+	case reflect.UnsafePointer:
+		str += "unsafepointer"
+		return
+	}
+
+	// No kind was matched, a new kind must have been added to golang
+	// and the library needs updating.
+	panic(encio.NewError(
+		encio.ErrBadType,
+		fmt.Sprintf("%v is of an unknown kind.", ty),
+		0,
+	))
+}
+
+func strictGlob(ty reflect.Type, seen map[reflect.Type]int) (str string) {
+	if seen == nil {
+		seen = make(map[reflect.Type]int)
+	}
+
+	str += ty.Kind().String()
+	str += ty.PkgPath() + ty.Name()
+
+	switch ty.Kind() {
 	case reflect.Invalid,
 		reflect.Bool,
 		reflect.Int,
@@ -155,73 +252,75 @@ func glob(t reflect.Type, config Config, seen map[reflect.Type]int) (g string) {
 		reflect.Float32,
 		reflect.Float64,
 		reflect.Complex64,
-		reflect.Complex128,
-		reflect.String,
-		reflect.UnsafePointer:
+		reflect.Complex128:
 		return
+	}
 
-	// Compound types. These types are made of other types. Check those too.
+	if seen[ty] > 1 {
+		return "recursed"
+	}
+	seen[ty]++
 
+	switch ty.Kind() {
 	case reflect.Array:
-		g += strconv.Itoa(t.Len()) + glob(t.Elem(), config, seen)
+		str += "array" + strconv.Itoa(ty.Len()) + strictGlob(ty.Elem(), seen)
 		return
 
 	case reflect.Chan:
-		g += strconv.Itoa(int(t.ChanDir())) + glob(t.Elem(), config, seen)
+		str += "chan" + strictGlob(ty.Elem(), seen)
 		return
 
 	case reflect.Func:
-		for i := 0; i < t.NumIn(); i++ {
-			g += glob(t.In(i), config, seen)
+		for i := 0; i < ty.NumIn(); i++ {
+			str += strictGlob(ty.In(i), seen)
 		}
 
 		// Without this, moving the first return value to the last input value
 		// would look like an identical function.
-		g += "out"
+		str += "out"
 
-		for i := 0; i < t.NumOut(); i++ {
-			g += glob(t.Out(i), config, seen)
+		for i := 0; i < ty.NumOut(); i++ {
+			str += strictGlob(ty.Out(i), seen)
 		}
-
 		return
 
 	case reflect.Interface:
-		if t.Name() != "" && config&LooseTyping > 0 {
-			// We're a named interface, and we've been asked to use loose typing.
-			g += "skipped"
-			return
-		}
-
 		// Unlike struct's Field() method, Method() returns in lexographical order,
 		// so we don't have to worry about order.
-		for i := 0; i < t.NumMethod(); i++ {
-			m := t.Method(i)
-			g += m.Name + glob(m.Type, config, seen)
+		for i := 0; i < ty.NumMethod(); i++ {
+			m := ty.Method(i)
+			str += m.Name + strictGlob(m.Type, seen)
 		}
 
 		return
 
 	case reflect.Map:
-		g += glob(t.Key(), config, seen) + glob(t.Elem(), config, seen)
+		str += "map[" + strictGlob(ty.Key(), seen) + "]" + strictGlob(ty.Elem(), seen)
 		return
 
-	case reflect.Ptr, reflect.Slice:
-		g += glob(t.Elem(), config, seen)
+	case reflect.Ptr:
+		str += "*" + strictGlob(ty.Elem(), seen)
+		return
+
+	case reflect.Slice:
+		str += "[]" + strictGlob(ty.Elem(), seen)
+		return
+
+	case reflect.String:
+		str += "string"
 		return
 
 	case reflect.Struct:
-		if t.Name() != "" && config&LooseTyping > 0 {
-			// We're a named struct and we've been asked to use loose typing
-			g += "skipped"
-			return
-		}
-
-		fields := structFields(t, StructTag)
+		fields := structFields(ty)
 
 		for _, field := range fields {
-			g += field.Name + glob(field.Type, config, seen)
+			str += field.Name + strictGlob(field.Type, seen)
 		}
 
+		return
+
+	case reflect.UnsafePointer:
+		str += "unsafepointer"
 		return
 	}
 
@@ -229,7 +328,7 @@ func glob(t reflect.Type, config Config, seen map[reflect.Type]int) (g string) {
 	// and the library needs updating.
 	panic(encio.NewError(
 		encio.ErrBadType,
-		fmt.Sprintf("%v is of an unknown kind.", t),
+		fmt.Sprintf("%v is of an unknown kind.", ty),
 		0,
 	))
 }
@@ -314,20 +413,29 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 			return nil
 		}
 
-		// Neither existing type nor any registered types match. Try search by name so we can show a better error message.
+		// Neither existing type nor any registered types match strictly. Check loose types.
 		var nameMatch reflect.Type
 		if existing[0] == id[0] {
+			// We have a loose match with the existing.
+			if e.config&LooseTyping != 0 {
+				return nil
+			}
 			nameMatch = ty
 		} else {
 			for rty, rid := range e.idByType {
 				if rid[0] == id[0] {
+					if e.config&LooseTyping != 0 {
+						// We found a loose match with an existing type.
+						*(*reflect.Type)(ptr) = rty
+						return nil
+					}
 					nameMatch = rty
 				}
 			}
 		}
 
 		if nameMatch != nil && nameMatch.Name() != "" {
-			return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %016X. %v has the same name, but its signature doesn't match. Is it different on the remote?", id, nameMatch), 0)
+			return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %016X. %v loosely matches, but LooseTyping isn't enabled.", id, nameMatch), 0)
 		}
 	}
 
@@ -422,7 +530,7 @@ func (e *Value) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		*v = n
 	}
 
-	if err := (*enc).Decode(unsafe.Pointer((*v).UnsafeAddr()), r); err != nil {
+	if err := (*enc).Decode(unsafe.Pointer(v.UnsafeAddr()), r); err != nil {
 		// I no longer trust whatever is in the value
 		*(*reflect.Value)(ptr) = reflect.Value{}
 		return err

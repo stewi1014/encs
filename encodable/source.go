@@ -26,6 +26,21 @@ type Source interface {
 	NewEncodable(reflect.Type, Config, Source) *Encodable
 }
 
+// SourceFromFunc creates a source using a function. It is mostly used for spoofing tests, but can do other things.
+// Typically, Sources need to retain information between Encodable generation for various reasons, including avoiding infinite recursion
+// and caching for speed. Usability is typically limited to testing and creating "simple" sources that are wrapped with other sources providing neccecary features.
+func SourceFromFunc(newEncodable func(reflect.Type, Config, Source) *Encodable) Source {
+	return funcSource{newEncodable: newEncodable}
+}
+
+type funcSource struct {
+	newEncodable func(reflect.Type, Config, Source) *Encodable
+}
+
+func (s funcSource) NewEncodable(ty reflect.Type, config Config, source Source) *Encodable {
+	return s.newEncodable(ty, config, source)
+}
+
 // NewCachingSource returns a new CachingSource, using source for cache misses.
 // Users of CachingSource must not pass it to element Encodables who may try to create themselves,
 // else a situation may arise where a recursive type causes an Encodable to be given itself from the cache, and it makes

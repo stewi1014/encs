@@ -69,22 +69,19 @@ func TestRecursive(t *testing.T) {
 				return &s[0]
 			}(),
 		},
-		// TODO: Re-enable this when map-recursion fix for go-testdeep hits upstream.
-		/*
-			{
-				desc: "Map value recursion",
-				encode: func() *RecursiveTest3 {
-					s := RecursiveTest3{
-						B: "Hello",
-					}
+		{
+			desc: "Map value recursion",
+			encode: func() *RecursiveTest3 {
+				s := RecursiveTest3{
+					B: "Hello",
+				}
 
-					m := make(map[int]RecursiveTest3, 1)
-					s.M = m
-					m[0] = s
-					return &s
-				}(),
-			},
-		*/
+				m := make(map[int]RecursiveTest3, 1)
+				s.M = m
+				m[0] = s
+				return &s
+			}(),
+		},
 	}
 	for _, config := range configPermutations {
 		for _, tC := range testCases {

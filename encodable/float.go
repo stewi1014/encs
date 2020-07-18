@@ -12,26 +12,27 @@ import (
 )
 
 // NewFloat32 returns a new float32 Encodable.
-func NewFloat32() *Float32 {
+func NewFloat32(ty reflect.Type) *Float32 {
+	if ty.Kind() != reflect.Float32 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of float32 kind", ty.String()), 0))
+	}
 	return &Float32{
+		ty:   ty,
 		buff: make([]byte, 4),
 	}
 }
 
 // Float32 is an Encodable for float32s.
 type Float32 struct {
+	ty   reflect.Type
 	buff []byte
 }
 
 // Size implemenets Encodable.
-func (e *Float32) Size() int {
-	return 4
-}
+func (e *Float32) Size() int { return 4 }
 
 // Type implements Encodable.
-func (e *Float32) Type() reflect.Type {
-	return float32Type
-}
+func (e *Float32) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Float32) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -61,26 +62,27 @@ func (e *Float32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewFloat64 returns a new float64 Encodable.
-func NewFloat64() *Float64 {
+func NewFloat64(ty reflect.Type) *Float64 {
+	if ty.Kind() != reflect.Float64 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of float64 kind", ty.String()), 0))
+	}
 	return &Float64{
+		ty:   ty,
 		buff: make([]byte, 8),
 	}
 }
 
 // Float64 is an Encodable for float64s.
 type Float64 struct {
+	ty   reflect.Type
 	buff []byte
 }
 
 // Size implemenets Encodable.
-func (e *Float64) Size() int {
-	return 8
-}
+func (e *Float64) Size() int { return 8 }
 
 // Type implements Encodable.
-func (e *Float64) Type() reflect.Type {
-	return float64Type
-}
+func (e *Float64) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Float64) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -125,9 +127,9 @@ func NewComplex(ty reflect.Type, config Config) Encodable {
 	case config&LooseTyping != 0:
 		return NewVarComplex(ty)
 	case ty.Kind() == reflect.Complex128:
-		return NewComplex128()
+		return NewComplex128(ty)
 	case ty.Kind() == reflect.Complex64:
-		return NewComplex64()
+		return NewComplex64(ty)
 	default:
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of complex64 or complex128 kind", ty.String()), 0))
 	}
@@ -300,26 +302,24 @@ func (e *VarComplex) decode128(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewComplex64 returns a new complex128 Encodable.
-func NewComplex64() *Complex64 {
+func NewComplex64(ty reflect.Type) *Complex64 {
 	return &Complex64{
+		ty:   ty,
 		buff: make([]byte, 8),
 	}
 }
 
 // Complex64 is an Encodable for complex64s.
 type Complex64 struct {
+	ty   reflect.Type
 	buff []byte
 }
 
 // Size implemenets Encodable.
-func (e *Complex64) Size() int {
-	return 8
-}
+func (e *Complex64) Size() int { return 8 }
 
 // Type implements Encodable.
-func (e *Complex64) Type() reflect.Type {
-	return complex64Type
-}
+func (e *Complex64) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Complex64) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -361,26 +361,28 @@ func (e *Complex64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewComplex128 returns a new complex128 Encodable.
-func NewComplex128() *Complex128 {
+func NewComplex128(ty reflect.Type) *Complex128 {
+	if ty.Kind() != reflect.Complex128 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of complex128 kind", ty.String()), 0))
+	}
+
 	return &Complex128{
+		ty:   ty,
 		buff: make([]byte, 16),
 	}
 }
 
 // Complex128 is an Encodable for complex128s.
 type Complex128 struct {
+	ty   reflect.Type
 	buff []byte
 }
 
 // Size implemenets Encodable.
-func (e *Complex128) Size() int {
-	return 16
-}
+func (e *Complex128) Size() int { return 16 }
 
 // Type implements Encodable.
-func (e *Complex128) Type() reflect.Type {
-	return complex128Type
-}
+func (e *Complex128) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Complex128) Encode(ptr unsafe.Pointer, w io.Writer) error {

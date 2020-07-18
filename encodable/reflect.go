@@ -7,33 +7,39 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
 )
 
+var (
+	reflectTypeType  = reflect.TypeOf(new(reflect.Type)).Elem()
+	reflectValueType = reflect.TypeOf(new(reflect.Value)).Elem()
+)
+
 func init() {
 	err := Register(
 		nil,
-		intType,
-		int8Type,
-		int16Type,
-		int32Type,
-		int64Type,
-		uintType,
-		uint8Type,
-		uint16Type,
-		uint32Type,
-		uint64Type,
-		uintptrType,
-		float32Type,
-		float64Type,
-		complex64Type,
-		complex128Type,
-		stringType,
-		boolType,
-		timeTimeType,
-		timeDurationType,
+		reflect.TypeOf(int(0)),
+		reflect.TypeOf(int8(0)),
+		reflect.TypeOf(int16(0)),
+		reflect.TypeOf(int32(0)),
+		reflect.TypeOf(int64(0)),
+		reflect.TypeOf(uint(0)),
+		reflect.TypeOf(uint8(0)),
+		reflect.TypeOf(uint16(0)),
+		reflect.TypeOf(uint32(0)),
+		reflect.TypeOf(uint64(0)),
+		reflect.TypeOf(uintptr(0)),
+		reflect.TypeOf(float32(0)),
+		reflect.TypeOf(float64(0)),
+		reflect.TypeOf(complex64(0)),
+		reflect.TypeOf(complex128(0)),
+		reflect.TypeOf(string("")),
+		reflect.TypeOf(false),
+		reflect.TypeOf(time.Time{}),
+		reflect.TypeOf(time.Duration(0)),
 		reflectTypeType,
 		reflectValueType,
 	)
@@ -52,24 +58,31 @@ var ErrAlreadyRegistered = errors.New("already registered")
 // Register allows an unknown type to be decoded with Type.
 func Register(types ...reflect.Type) error {
 	var errMsg string
-add:
-	for _, t := range types {
-		for _, r := range registered {
-			if r == t {
-				if len(errMsg) > 0 {
-					errMsg += ", "
-				}
-				errMsg += fmt.Sprintf("%v", t)
-				continue add
+	for _, ty := range types {
+		if register(ty) {
+			if len(errMsg) > 0 {
+				errMsg += ", "
 			}
+			errMsg += fmt.Sprintf("%v", ty)
+			continue
 		}
-		registered = append(registered, t)
 	}
 
 	if errMsg != "" {
 		return fmt.Errorf("%w: %v", ErrAlreadyRegistered, errMsg)
 	}
 	return nil
+}
+
+// register registers the type, returning true if it was previously registered.
+func register(ty reflect.Type) bool {
+	for _, r := range registered {
+		if r == ty {
+			return true
+		}
+	}
+	registered = append(registered, ty)
+	return false
 }
 
 // GetID returns a unique ID for a given reflect.Type.

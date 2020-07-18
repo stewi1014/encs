@@ -14,7 +14,7 @@ func TestFloat32(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1,
 	}
 
-	enc := encodable.NewFloat32()
+	enc := encodable.NewFloat32(reflect.TypeOf(float32(0)))
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
@@ -28,7 +28,7 @@ func TestFloat64(t *testing.T) {
 		0, 1, 2, 3, 4, 5, 6, 254, 255, 256, 1<<32 - 1,
 	}
 
-	enc := encodable.NewFloat64()
+	enc := encodable.NewFloat64(reflect.TypeOf(float64(0)))
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
@@ -42,7 +42,7 @@ func TestComplex64(t *testing.T) {
 		0 + 4i, 112 + 31i, 1<<89 - 1 + 1384603i, 3, 4i,
 	}
 
-	enc := encodable.NewComplex64()
+	enc := encodable.NewComplex64(reflect.TypeOf(complex64(0)))
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
@@ -56,7 +56,7 @@ func TestComplex128(t *testing.T) {
 		0 + 4i, 112 + 31i, 1<<89 - 1 + 1384603i, 3, 4i,
 	}
 
-	enc := encodable.NewComplex128()
+	enc := encodable.NewComplex128(reflect.TypeOf(complex128(0)))
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {

@@ -3,6 +3,7 @@ package encodable_test
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"testing"
 	"unsafe"
 
@@ -66,7 +67,7 @@ func TestString(t *testing.T) {
 	`,
 	}
 
-	enc := encodable.NewString()
+	enc := encodable.NewString(reflect.TypeOf(string("")))
 
 	for _, tC := range testCases {
 		t.Run(fmt.Sprintf("String length %v", len(tC)), func(t *testing.T) {
@@ -77,7 +78,7 @@ func TestString(t *testing.T) {
 
 func TestBool(t *testing.T) {
 	testCases := []bool{true, false}
-	enc := encodable.NewBool()
+	enc := encodable.NewBool(reflect.TypeOf(false))
 	for _, tC := range testCases {
 		t.Run(fmt.Sprint(tC), func(t *testing.T) {
 			testEqual(&tC, &tC, enc, t)
@@ -87,7 +88,7 @@ func TestBool(t *testing.T) {
 
 func BenchmarkString(b *testing.B) {
 	str := "Hello World!"
-	e := encodable.NewString()
+	e := encodable.NewString(reflect.TypeOf(string("")))
 	buff := new(bytes.Buffer)
 
 	for i := 0; i < b.N; i++ {

@@ -27,14 +27,10 @@ type Memory struct {
 }
 
 // Type implements Encodable.
-func (e *Memory) Type() reflect.Type {
-	return nil
-}
+func (e *Memory) Type() reflect.Type { return nil }
 
 // Size implemenets Encodable.
-func (e *Memory) Size() int {
-	return e.buff.Cap
-}
+func (e *Memory) Size() int { return e.buff.Cap }
 
 // Encode implements Encodable.
 func (e *Memory) Encode(ptr unsafe.Pointer, w io.Writer) error {

@@ -1,6 +1,7 @@
 package encodable
 
 import (
+	"fmt"
 	"io"
 	"math"
 	"reflect"
@@ -10,24 +11,26 @@ import (
 )
 
 // NewUint8 returns a new uint8 Encodable.
-func NewUint8() *Uint8 {
-	return &Uint8{}
+func NewUint8(ty reflect.Type) *Uint8 {
+	if ty.Kind() != reflect.Uint8 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of uint8 kind", ty.String()), 0))
+	}
+	return &Uint8{
+		ty: ty,
+	}
 }
 
 // Uint8 is an Encodable for uint8s.
 type Uint8 struct {
+	ty   reflect.Type
 	buff [1]byte
 }
 
 // Size implements Encodable.
-func (e *Uint8) Size() int {
-	return 1
-}
+func (e *Uint8) Size() int { return 1 }
 
 // Type implements Encodable.
-func (e *Uint8) Type() reflect.Type {
-	return uint8Type
-}
+func (e *Uint8) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Uint8) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -48,24 +51,26 @@ func (e *Uint8) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUint16 returns a new uint16 Encodable.
-func NewUint16() *Uint16 {
-	return &Uint16{}
+func NewUint16(ty reflect.Type) *Uint16 {
+	if ty.Kind() != reflect.Uint16 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of uint16 kind", ty.String()), 0))
+	}
+	return &Uint16{
+		ty: ty,
+	}
 }
 
 // Uint16 is an Encodable for uint16s.
 type Uint16 struct {
+	ty   reflect.Type
 	buff [2]byte
 }
 
 // Size implements Encodable.
-func (e *Uint16) Size() int {
-	return 2
-}
+func (e *Uint16) Size() int { return 2 }
 
 // Type implements Encodable.
-func (e Uint16) Type() reflect.Type {
-	return uint16Type
-}
+func (e Uint16) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Uint16) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -90,24 +95,26 @@ func (e *Uint16) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUint32 returns a new uint32 Encodable.
-func NewUint32() *Uint32 {
-	return &Uint32{}
+func NewUint32(ty reflect.Type) *Uint32 {
+	if ty.Kind() != reflect.Uint32 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of uint32 kind", ty.String()), 0))
+	}
+	return &Uint32{
+		ty: ty,
+	}
 }
 
 // Uint32 is an Encodable for uint32s.
 type Uint32 struct {
+	ty   reflect.Type
 	buff [4]byte
 }
 
 // Size implements Encodable.
-func (e *Uint32) Size() int {
-	return 4
-}
+func (e *Uint32) Size() int { return 4 }
 
 // Type implements Encodable.
-func (e *Uint32) Type() reflect.Type {
-	return uint32Type
-}
+func (e *Uint32) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Uint32) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -137,24 +144,26 @@ func (e *Uint32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUint64 returns a new uint64 Encodable.
-func NewUint64() *Uint64 {
-	return &Uint64{}
+func NewUint64(ty reflect.Type) *Uint64 {
+	if ty.Kind() != reflect.Uint64 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of uint64 kind", ty.String()), 0))
+	}
+	return &Uint64{
+		ty: ty,
+	}
 }
 
 // Uint64 is an Encodable for uint64s.
 type Uint64 struct {
+	ty   reflect.Type
 	buff [8]byte
 }
 
 // Size implements Encodable.
-func (e *Uint64) Size() int {
-	return 8
-}
+func (e *Uint64) Size() int { return 8 }
 
 // Type implements Encodable.
-func (e *Uint64) Type() reflect.Type {
-	return uint64Type
-}
+func (e *Uint64) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Uint64) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -192,12 +201,18 @@ func (e *Uint64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUint returns a new uint Encodable.
-func NewUint() *Uint {
-	return &Uint{}
+func NewUint(ty reflect.Type) *Uint {
+	if ty.Kind() != reflect.Uint {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of uint kind", ty.String()), 0))
+	}
+	return &Uint{
+		ty: ty,
+	}
 }
 
 // Uint is an Encodable for uints.
 type Uint struct {
+	ty   reflect.Type
 	buff [9]byte
 }
 
@@ -206,14 +221,10 @@ const (
 )
 
 // Size implements Encodable.
-func (e *Uint) Size() int {
-	return 9
-}
+func (e *Uint) Size() int { return 9 }
 
 // Type implements Encodable.
-func (e *Uint) Type() reflect.Type {
-	return uintType
-}
+func (e *Uint) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Uint) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -261,24 +272,26 @@ func (e *Uint) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt8 returns a new int8 Encodable.
-func NewInt8() *Int8 {
-	return &Int8{}
+func NewInt8(ty reflect.Type) *Int8 {
+	if ty.Kind() != reflect.Int8 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of int8 kind", ty.String()), 0))
+	}
+	return &Int8{
+		ty: ty,
+	}
 }
 
 // Int8 is an Encodable for int8s.
 type Int8 struct {
+	ty   reflect.Type
 	buff [1]byte
 }
 
 // Size implements Encodable.
-func (e *Int8) Size() int {
-	return 1
-}
+func (e *Int8) Size() int { return 1 }
 
 // Type implements Encodable.
-func (e *Int8) Type() reflect.Type {
-	return int8Type
-}
+func (e *Int8) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Int8) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -298,24 +311,26 @@ func (e *Int8) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt16 returns a new int16 Encodable.
-func NewInt16() *Int16 {
-	return &Int16{}
+func NewInt16(ty reflect.Type) *Int16 {
+	if ty.Kind() != reflect.Int16 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of int16 kind", ty.String()), 0))
+	}
+	return &Int16{
+		ty: ty,
+	}
 }
 
 // Int16 is an Encodable for int16s.
 type Int16 struct {
+	ty   reflect.Type
 	buff [2]byte
 }
 
 // Size implements Encodable.
-func (e *Int16) Size() int {
-	return 2
-}
+func (e *Int16) Size() int { return 2 }
 
 // Type implements Encodable.
-func (e *Int16) Type() reflect.Type {
-	return int16Type
-}
+func (e *Int16) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Int16) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -340,24 +355,26 @@ func (e *Int16) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt32 returns a new int32 Encodable.
-func NewInt32() *Int32 {
-	return &Int32{}
+func NewInt32(ty reflect.Type) *Int32 {
+	if ty.Kind() != reflect.Int32 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of int32 kind", ty.String()), 0))
+	}
+	return &Int32{
+		ty: ty,
+	}
 }
 
 // Int32 is an Encodable for int32s.
 type Int32 struct {
+	ty   reflect.Type
 	buff [4]byte
 }
 
 // Size implements Encodable.
-func (e *Int32) Size() int {
-	return 4
-}
+func (e *Int32) Size() int { return 4 }
 
 // Type implements Encodable.
-func (e *Int32) Type() reflect.Type {
-	return int32Type
-}
+func (e *Int32) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Int32) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -387,24 +404,26 @@ func (e *Int32) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt64 returns a new int64 Encodable.
-func NewInt64() *Int64 {
-	return &Int64{}
+func NewInt64(ty reflect.Type) *Int64 {
+	if ty.Kind() != reflect.Int64 {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of int64 kind", ty.String()), 0))
+	}
+	return &Int64{
+		ty: ty,
+	}
 }
 
 // Int64 is an Encodable for int64s.
 type Int64 struct {
+	ty   reflect.Type
 	buff [8]byte
 }
 
 // Size implements Encodable.
-func (e *Int64) Size() int {
-	return 8
-}
+func (e *Int64) Size() int { return 8 }
 
 // Type implements Encodable.
-func (e *Int64) Type() reflect.Type {
-	return int64Type
-}
+func (e *Int64) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Int64) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -442,26 +461,28 @@ func (e *Int64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewInt returns a new int Encodable.
-func NewInt() *Int {
-	return &Int{}
+func NewInt(ty reflect.Type) *Int {
+	if ty.Kind() != reflect.Int {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of int kind", ty.String()), 0))
+	}
+	return &Int{
+		ty: ty,
+	}
 }
 
 // Int is an Encodable for ints.
 type Int struct {
+	ty   reflect.Type
 	buff [9]byte
 }
 
 const minSingleInt = int8(-1<<7 + 9)
 
 // Size implements Encodable.
-func (e *Int) Size() int {
-	return 9
-}
+func (e *Int) Size() int { return 9 }
 
 // Type implements Encodable.
-func (e *Int) Type() reflect.Type {
-	return intType
-}
+func (e *Int) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Int) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -517,24 +538,26 @@ func (e *Int) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewUintptr returns a new uintptr Encodable.
-func NewUintptr() *Uintptr {
-	return &Uintptr{}
+func NewUintptr(ty reflect.Type) *Uintptr {
+	if ty.Kind() != reflect.Uintptr {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of uintptr kind", ty.String()), 0))
+	}
+	return &Uintptr{
+		ty: ty,
+	}
 }
 
 // Uintptr is an Encodable for uintptrs.
 type Uintptr struct {
+	ty   reflect.Type
 	buff [9]byte
 }
 
 // Size implements Encodable.
-func (e *Uintptr) Size() int {
-	return 9
-}
+func (e *Uintptr) Size() int { return 9 }
 
 // Type implements Encodable.
-func (e *Uintptr) Type() reflect.Type {
-	return uintptrType
-}
+func (e *Uintptr) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Uintptr) Encode(ptr unsafe.Pointer, w io.Writer) error {

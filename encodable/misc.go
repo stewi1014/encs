@@ -11,24 +11,27 @@ import (
 )
 
 // NewString returns a new string Encodable.
-func NewString() *String {
-	return &String{}
+func NewString(ty reflect.Type) *String {
+	if ty.Kind() != reflect.String {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of string kind", ty.String()), 0))
+	}
+
+	return &String{
+		ty: ty,
+	}
 }
 
 // String is an Encodable for strings.
 type String struct {
+	ty  reflect.Type
 	len encio.Uint
 }
 
 // Size implemenets Encodable.
-func (e *String) Size() int {
-	return -1 << 31
-}
+func (e *String) Size() int { return -1 << 31 }
 
 // Type implements Encodable.
-func (e *String) Type() reflect.Type {
-	return stringType
-}
+func (e *String) Type() reflect.Type { return e.ty }
 
 // Encode implemenets Encodable.
 func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -69,26 +72,27 @@ func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewBool returns a new bool Encodable.
-func NewBool() Encodable {
+func NewBool(ty reflect.Type) Encodable {
+	if ty.Kind() != reflect.Bool {
+		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of bool kind", ty.String()), 0))
+	}
 	return &Bool{
+		ty:   ty,
 		buff: make([]byte, 1),
 	}
 }
 
 // Bool is an Encodable for bools.
 type Bool struct {
+	ty   reflect.Type
 	buff []byte
 }
 
 // Size implements Encodable.
-func (e *Bool) Size() int {
-	return 1
-}
+func (e *Bool) Size() int { return 1 }
 
 // Type implements Encodable.
-func (e *Bool) Type() reflect.Type {
-	return boolType
-}
+func (e *Bool) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *Bool) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -106,6 +110,11 @@ func (e *Bool) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	*(*byte)(ptr) = e.buff[0]
 	return nil
 }
+
+var (
+	binaryMarshalerType   = reflect.TypeOf(new(encoding.BinaryMarshaler)).Elem()
+	binaryUnmarshalerType = reflect.TypeOf(new(encoding.BinaryUnmarshaler)).Elem()
+)
 
 // NewBinaryMarshaler returns a new BinaryMarshaler Encodable.
 // It can internally handle a reference;
@@ -168,14 +177,10 @@ func (e *BinaryMarshaler) setIface(ptr unsafe.Pointer) {
 }
 
 // Type implements Encodable.
-func (e *BinaryMarshaler) Type() reflect.Type {
-	return e.t
-}
+func (e *BinaryMarshaler) Type() reflect.Type { return e.t }
 
 // Size implements Encodable.
-func (e *BinaryMarshaler) Size() int {
-	return -1 << 31
-}
+func (e *BinaryMarshaler) Size() int { return -1 << 31 }
 
 // Encode implements Encodable.
 func (e *BinaryMarshaler) Encode(ptr unsafe.Pointer, w io.Writer) error {

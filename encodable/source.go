@@ -19,9 +19,13 @@ type Source interface {
 	// Source should take care to avoid infinite recursion, taking note of when it is called to create an Encodable from inside the same Encodable's creation function,
 	// or when a type could possibly reference a parent encodable's value. The Encodable may not be de-referenced; Source may retroactively replace the Encodable.
 	//
-	// Implementations of Source can use Recursive as an Encodable that solves recursive cases.
+	// It returns a pointer to an Encodable as it needs to be able to retroactively modify it. Subsequent Encodable generation could find that the type the Encodable
+	// is encoding could be referenced, either during generation, or at runtime through a type like interface{} or reflect.Value. If so, in lieu of adding pointer logic to everything,
+	// Source must be able to retroactively modify the encodable to wrap pointer logic onto it.
 	//
-	// The Source passed to NewEncodable is passed to the Encodable that it creates. It is used by wrapping Sources to pass themselves to new Encodables,
+	// Implementations of Source can use Recursive as an Encodable that solves references and recursive cases.
+	//
+	// The Source passed to NewEncodable must be passed to the Encodable that it creates. It is used by wrapping Sources to pass themselves to new Encodables,
 	// so they don't loose control of element Encodable generation.
 	NewEncodable(reflect.Type, Config, Source) *Encodable
 }

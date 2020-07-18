@@ -163,9 +163,9 @@ func (s DefaultSource) NewEncodable(ty reflect.Type, config Config, src Source) 
 
 	// Misc types
 	case kind == reflect.Bool:
-		*enc = NewBool()
+		*enc = NewBool(ty)
 	case kind == reflect.String:
-		*enc = NewString()
+		*enc = NewString(ty)
 	default:
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot create encodable for type %v", ty), 0))
 	}
@@ -183,32 +183,40 @@ func NewNumber(ty reflect.Type, config Config) Encodable {
 	case config&LooseTyping != 0:
 		return NewVarint(ty)
 	case kind == reflect.Uint8:
-		return NewUint8()
+		return NewUint8(ty)
 	case kind == reflect.Uint16:
-		return NewUint16()
+		return NewUint16(ty)
 	case kind == reflect.Uint32:
-		return NewUint32()
+		return NewUint32(ty)
 	case kind == reflect.Uint64:
-		return NewUint64()
+		return NewUint64(ty)
 	case kind == reflect.Uint:
-		return NewUint()
+		return NewUint(ty)
 	case kind == reflect.Int8:
-		return NewInt8()
+		return NewInt8(ty)
 	case kind == reflect.Int16:
-		return NewInt16()
+		return NewInt16(ty)
 	case kind == reflect.Int32:
-		return NewInt32()
+		return NewInt32(ty)
 	case kind == reflect.Int64:
-		return NewInt64()
+		return NewInt64(ty)
 	case kind == reflect.Int:
-		return NewInt()
+		return NewInt(ty)
 	case kind == reflect.Uintptr:
-		return NewUintptr()
+		return NewUintptr(ty)
 	case kind == reflect.Float32:
-		return NewFloat32()
+		return NewFloat32(ty)
 	case kind == reflect.Float64:
-		return NewFloat64()
+		return NewFloat64(ty)
 	default:
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a number type. must be int* uint*, or float*", ty.String()), 0))
+	}
+}
+
+// checkPtr panics if ptr is nil.
+// As per the documentation of unsafe, unsafe.Pointer types cannot be nil at any time. See notes in encodable.go.
+func checkPtr(ptr unsafe.Pointer) {
+	if ptr == nil {
+		panic(encio.NewError(encio.ErrNilPointer, "unsafe.Pointer types are never allowed to be nil as per https://golang.org/pkg/unsafe/", 1))
 	}
 }

@@ -97,19 +97,30 @@ func GetID(ty reflect.Type, config Config) (id ID) {
 	if err := encio.Write([]byte(looseGlob(ty, nil)), hasher); err != nil {
 		panic(err)
 	}
-	id[0] = hasher.Sum64()
+
+	n := copy(id[:8], hasher.Sum(nil))
+	if n != 8 {
+		// This isn't possible unless the standard library changes.
+		panic("Hasher didn't write 8 bytes to buffer")
+	}
 
 	// Second half is the details about the types kind
 	hasher.Reset()
 	if err := encio.Write([]byte(strictGlob(ty, nil)), hasher); err != nil {
 		panic(err)
 	}
-	id[1] = hasher.Sum64()
-	return
+
+	n = copy(id[8:], hasher.Sum(nil))
+	if n != 8 {
+		// This isn't possible unless the standard library changes.
+		panic("Hasher didn't write 8 bytes to buffer")
+	}
+
+	return id
 }
 
 // ID is a 128 bit ID for a given reflect.Type.
-type ID [2]uint64
+type ID [16]byte
 
 func (id ID) String() string {
 	return fmt.Sprintf("%x-%x", id[0], id[1])
@@ -369,7 +380,6 @@ type Type struct {
 	typeByID map[ID]reflect.Type
 	idByType map[reflect.Type]ID
 	config   Config
-	idEnc    encio.UUID
 }
 
 // Size implements Encodable.
@@ -394,15 +404,15 @@ func (e *Type) Encode(ptr unsafe.Pointer, w io.Writer) error {
 		fmt.Fprintf(encio.Warnings, "type %v send with id %v (previously seen: %v)\n", ty.String(), id, ok)
 	}
 
-	return e.idEnc.EncodeUUID(w, id)
+	return encio.Write(id[:], w)
 }
 
 // Decode implements Encodable.
 // Apart from checking registered types, it also cheks if the type currently in ptr is a match,
 // and if so, does nothing.
 func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	id, err := e.idEnc.DecodeUUID(r)
-	if err != nil {
+	var id ID
+	if err := encio.Read(id[:], r); err != nil {
 		return err
 	}
 

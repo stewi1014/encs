@@ -17,14 +17,15 @@ func NewString(ty reflect.Type) *String {
 	}
 
 	return &String{
-		ty: ty,
+		ty:  ty,
+		len: encio.NewVaruint32(),
 	}
 }
 
 // String is an Encodable for strings.
 type String struct {
 	ty  reflect.Type
-	len encio.Uint
+	len encio.Varuint32
 }
 
 // Size implemenets Encodable.
@@ -38,7 +39,8 @@ func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	checkPtr(ptr)
 	str := (*string)(ptr)
 	l := uint32(len(*str))
-	if err := e.len.EncodeUint32(w, l); err != nil || l == 0 {
+
+	if _, err := e.len.Encode(w, l); err != nil || l == 0 {
 		return err
 	}
 
@@ -49,7 +51,7 @@ func (e *String) Encode(ptr unsafe.Pointer, w io.Writer) error {
 func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 
-	l, err := e.len.DecodeUint32(r)
+	l, err := e.len.Decode(r)
 	if err != nil {
 		return err
 	}

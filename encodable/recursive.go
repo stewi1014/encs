@@ -21,6 +21,7 @@ func NewRecursiveSource(source Source) *RecursiveSource {
 	return &RecursiveSource{
 		source: source,
 		seen:   make(map[EncID]*genState),
+		ptrs:   NewPointers(),
 	}
 }
 
@@ -176,6 +177,13 @@ func (src *RecursiveSource) makeRecursive(id EncID, source Source) *Encodable {
 	return &enc
 }
 
+// NewPointers returns a new Pointers.
+func NewPointers() Pointers {
+	return Pointers{
+		Int32: encio.NewInt32(),
+	}
+}
+
 // Pointers provides methods for resolving pointer cycles.
 // It takes a reflect.Type in methods, and uses them to check equality agaist recorded objects,
 // returning an error if types do not match. This is not so neccecary for Encoding, but is very important to validate when Decoding.
@@ -188,7 +196,7 @@ func (src *RecursiveSource) makeRecursive(id EncID, source Source) *Encodable {
 type Pointers struct {
 	pointers []object
 	in       bool
-	encio.Int
+	encio.Int32
 }
 
 // object contains information about a value.
@@ -367,18 +375,18 @@ func (e *Recursive) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 	if has {
 		// We've already encoded this pointer.
-		return e.ptrs.EncodeInt32(w, index)
+		return e.ptrs.Encode(w, index)
 	}
 
 	// Check reference types.
 	if val := reflect.NewAt(e.ty, ptr).Elem(); e.kind == rReference && !val.IsNil() {
 		if index, has := e.ptrs.HasReference(val); has {
-			return e.ptrs.EncodeInt32(w, index)
+			return e.ptrs.Encode(w, index)
 		}
 	}
 
 	e.ptrs.Add(ptr, e.ty)
-	if err := e.ptrs.EncodeInt32(w, ptrEncoded); err != nil {
+	if err := e.ptrs.Encode(w, ptrEncoded); err != nil {
 		return err
 	}
 
@@ -394,7 +402,7 @@ func (e *Recursive) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		defer e.ptrs.Reset()
 	}
 
-	index, err := e.ptrs.DecodeInt32(r)
+	index, err := e.ptrs.Decode(r)
 	if err != nil {
 		return err
 	}

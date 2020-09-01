@@ -101,6 +101,7 @@ func NewMap(ty reflect.Type, config Config, src Source) *Map {
 	return &Map{
 		key: src.NewEncodable(ty.Key(), config, nil),
 		val: src.NewEncodable(ty.Elem(), config, nil),
+		len: encio.NewInt32(),
 		t:   ty,
 	}
 }
@@ -108,7 +109,7 @@ func NewMap(ty reflect.Type, config Config, src Source) *Map {
 // Map is an Encodable for maps.
 type Map struct {
 	key, val *Encodable
-	len      encio.Int
+	len      encio.Int32
 	t        reflect.Type
 }
 
@@ -128,10 +129,10 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	v := reflect.NewAt(e.t, ptr).Elem()
 
 	if v.IsNil() {
-		return e.len.EncodeInt32(w, nilPointer)
+		return e.len.Encode(w, nilPointer)
 	}
 
-	if err := e.len.EncodeInt32(w, int32(v.Len())); err != nil {
+	if err := e.len.Encode(w, int32(v.Len())); err != nil {
 		return err
 	}
 
@@ -160,7 +161,7 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 // Decode implements Encodable.
 func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
-	l, err := e.len.DecodeInt32(r)
+	l, err := e.len.Decode(r)
 	if err != nil {
 		return err
 	}
@@ -330,6 +331,7 @@ func NewSlice(ty reflect.Type, config Config, src Source) *Slice {
 	return &Slice{
 		t:    ty,
 		elem: src.NewEncodable(ty.Elem(), config, nil),
+		len:  encio.NewInt32(),
 	}
 }
 
@@ -337,7 +339,7 @@ func NewSlice(ty reflect.Type, config Config, src Source) *Slice {
 type Slice struct {
 	t    reflect.Type
 	elem *Encodable
-	len  encio.Int
+	len  encio.Int32
 }
 
 // Size implemenets Encodable.
@@ -358,11 +360,11 @@ func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 	slice := reflect.NewAt(e.t, ptr).Elem()
 	if slice.IsNil() {
-		return e.len.EncodeInt32(w, nilPointer)
+		return e.len.Encode(w, nilPointer)
 	}
 
 	l := slice.Len()
-	if err := e.len.EncodeInt32(w, int32(l)); err != nil {
+	if err := e.len.Encode(w, int32(l)); err != nil {
 		return err
 	}
 
@@ -382,7 +384,7 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	checkPtr(ptr)
 	slice := reflect.NewAt(e.t, ptr).Elem()
 
-	l, err := e.len.DecodeInt32(r)
+	l, err := e.len.Decode(r)
 	if err != nil {
 		return err
 	}
@@ -535,7 +537,8 @@ func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
 	}
 
 	e := &StructLoose{
-		ty: ty,
+		ty:  ty,
+		len: encio.NewUint32(),
 	}
 
 	// Take a hash of each field name, generate an ID from it,
@@ -576,9 +579,9 @@ func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
 // Exported fields can be ignored using the tag `encs:"false"`, and
 // unexported fields can be included with the tag `encs:"true"`.
 type StructLoose struct {
-	ty      reflect.Type
-	fields  []*looseField
-	uintEnc encio.Uint
+	ty     reflect.Type
+	fields []*looseField
+	len    encio.Uint32
 }
 
 type looseField struct {
@@ -605,12 +608,12 @@ func (e *StructLoose) Type() reflect.Type { return e.ty }
 
 // Encode implements Encodable.
 func (e *StructLoose) Encode(ptr unsafe.Pointer, w io.Writer) error {
-	if err := e.uintEnc.EncodeUint32(w, uint32(len(e.fields))); err != nil {
+	if err := e.len.Encode(w, uint32(len(e.fields))); err != nil {
 		return err
 	}
 
 	for _, field := range e.fields {
-		if err := e.uintEnc.EncodeUint32(w, field.id); err != nil {
+		if err := e.len.Encode(w, field.id); err != nil {
 			return err
 		}
 
@@ -626,7 +629,7 @@ func (e *StructLoose) Encode(ptr unsafe.Pointer, w io.Writer) error {
 // Fields that are not received are set to their zero value.
 // Fields sent that do not exist locally are ignored.
 func (e *StructLoose) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	l, err := e.uintEnc.DecodeUint32(r)
+	l, err := e.len.Decode(r)
 	if err != nil {
 		return err
 	}
@@ -636,7 +639,7 @@ func (e *StructLoose) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	var i int
 	for parsed := uint32(0); parsed < l; parsed++ {
-		id, err := e.uintEnc.DecodeUint32(r)
+		id, err := e.len.Decode(r)
 		if err != nil {
 			return err
 		}

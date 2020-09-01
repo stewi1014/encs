@@ -27,6 +27,12 @@ type RecursiveTest4 struct {
 	B reflect.Value
 }
 
+type RecursiveTest5 struct {
+	N *RecursiveTest5
+	I int
+	P *int
+}
+
 func TestRecursive(t *testing.T) {
 	testCases := []struct {
 		desc   string
@@ -80,6 +86,22 @@ func TestRecursive(t *testing.T) {
 				s.M = m
 				m[0] = s
 				return &s
+			}(),
+		},
+		{
+			desc: "nested pointers in linked list",
+			encode: func() *RecursiveTest5 {
+				s := &RecursiveTest5{
+					I: 1,
+				}
+				s.P = &s.I
+
+				s.N = &RecursiveTest5{
+					P: &s.I,
+					I: 6,
+				}
+
+				return s
 			}(),
 		},
 	}

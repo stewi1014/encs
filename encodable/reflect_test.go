@@ -2,9 +2,7 @@ package encodable_test
 
 import (
 	"bytes"
-	"errors"
 	"io/ioutil"
-	"os"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -35,14 +33,6 @@ var testCases = []interface{}{
 	map[[8]byte]string{},
 	new(string),
 	nil,
-}
-
-func TestMain(m *testing.M) {
-	err := encodable.Register(testTypes()...)
-	if err != nil && !errors.Is(err, encodable.ErrAlreadyRegistered) {
-		panic(err)
-	}
-	os.Exit(m.Run())
 }
 
 func testTypes() []reflect.Type {

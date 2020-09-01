@@ -2,8 +2,10 @@ package encodable_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -12,7 +14,16 @@ import (
 	"github.com/stewi1014/encs/encodable"
 )
 
-// permuatteConfig returns all permutations of configuration with the given options.
+func TestMain(m *testing.M) {
+	err := encodable.Register(testTypes()...)
+	if err != nil && !errors.Is(err, encodable.ErrAlreadyRegistered) {
+		panic(err)
+	}
+
+	os.Exit(m.Run())
+}
+
+// permutateConfig returns all permutations of configuration with the given options.
 func permutateConfig(buff *[]encodable.Config, c encodable.Config, options []encodable.Config) []encodable.Config {
 	if buff == nil {
 		buff = new([]encodable.Config)

@@ -1,6 +1,8 @@
 package encio
 
 import (
+	"errors"
+	"fmt"
 	"io"
 )
 
@@ -10,8 +12,73 @@ type Buffer []byte
 // Write implements io.Writer.
 // It appends buff to the buffer.
 func (b *Buffer) Write(buff []byte) (int, error) {
-	copy((*b)[b.Grow(len(buff)):], buff)
-	return len(buff), nil
+	n := copy((*b)[b.Grow(len(buff)):], buff)
+	return n, nil
+}
+
+// ReadFrom implements io.ReaderFrom.
+// It reads from r, filling the buffer until either an error is returned by r, or no progress is made.
+func (b *Buffer) ReadFrom(r io.Reader) (read int64, err error) {
+	take := 256
+	var n int
+
+	for {
+		l := b.Grow(take)
+		n, err = r.Read((*b)[l:])
+
+		*b = (*b)[:l+n]
+		read += int64(n)
+
+		if err != nil {
+			break
+		}
+
+		if n == 0 {
+			return read, NewIOError(
+				io.ErrNoProgress,
+				r,
+				fmt.Sprintf(
+					"trying to read %v bytes",
+					take,
+				),
+				0,
+			)
+		}
+
+		take *= 2
+		if uintptr(take) > TooBig {
+			return read, NewIOError(
+				errors.New("too big"),
+				r,
+				fmt.Sprintf(
+					"refusing to buffer %v bytes as it's too big",
+					take,
+				),
+				0,
+			)
+		}
+	}
+
+	if err == io.EOF {
+		err = nil
+	}
+	return
+}
+
+// Len returns the length of the buffer.
+func (b *Buffer) Len() int {
+	if b == nil {
+		return 0
+	}
+	return len(*b)
+}
+
+// Cap return shte capacity of the buffer.
+func (b *Buffer) Cap() int {
+	if b == nil {
+		return 0
+	}
+	return cap(*b)
 }
 
 // Grow grows the buffer by n bytes, returning the previous length of the buffer.
@@ -46,7 +113,7 @@ type RepeatReader struct {
 // It reads from the internal buffer. When the end of the buffer is reached, it return io.EOF.
 // Subsequent calls will begin reading from the beginning again.
 func (r *RepeatReader) Read(buff []byte) (int, error) {
-	n := copy(buff, r.buff)
+	n := copy(buff, r.buff[r.off:])
 	r.off += n
 	if r.off == len(r.buff) {
 		r.off = 0

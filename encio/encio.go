@@ -17,7 +17,7 @@ var (
 	TooBig = uintptr(1 << (25 + ((^uint(0) >> 32) & 2)))
 )
 
-// Read reads from r, providing error handling with little overhead in almost all cases.
+// Read reads from r, completely filling the buffer. It provides error handling with as little overhead as possible.
 // In an ideal read, only a single int equality check is performed. If the read reports the whole buffer is read, returned errors are ignored.
 func Read(buff []byte, r io.Reader) error {
 	n, err := r.Read(buff)
@@ -40,20 +40,15 @@ func Read(buff []byte, r io.Reader) error {
 				fmt.Sprintf("reported %v bytes read, but buffer is only %v bytes", end, len(buff)),
 				1,
 			)
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return NewIOError(
-				err,
+				io.ErrUnexpectedEOF,
 				r,
 				fmt.Sprintf("want %v bytes but only got %v", len(buff), end),
 				1,
 			)
 		case err != nil:
-			return NewIOError(
-				err,
-				r,
-				fmt.Sprintf("reading %v bytes", len(buff)),
-				1,
-			)
+			return err
 		default: // err == nil
 			return NewIOError(
 				io.ErrNoProgress,

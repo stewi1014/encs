@@ -59,7 +59,7 @@ func (b *Buffer) ReadFrom(r io.Reader) (read int64, err error) {
 		}
 	}
 
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		err = nil
 	}
 	return

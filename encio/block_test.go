@@ -32,44 +32,42 @@ func TestBlock(t *testing.T) {
 		}
 
 		if err := encio.Write(send, writer); err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 
 		n, err := reader.Read(receive)
 		if err != nil && !errors.Is(err, io.EOF) {
-			t.Error(err)
+			t.Fatal(err)
 		}
 
 		if !td.Cmp(t, receive[:n], send) {
-			t.Errorf("Got: %v\n Wanted: %v", receive[:n], send)
+			t.Fatalf("Got: %v\n Wanted: %v", receive[:n], send)
 		}
 
 		if buff.Len() != 0 {
-			t.Errorf("data remining in buffer %v", buff.Bytes())
+			t.Fatalf("data remining in buffer %v", buff.Bytes())
 		}
 	}
 }
 
 func BenchmarkBlockWrite(b *testing.B) {
-	l := 32
+	l := 256
 
 	writer := encio.NewBlockWriter(ioutil.Discard)
 	send := make([]byte, l)
 
 	rng := rand.New(rand.NewSource(256))
-	for j := 0; j < l; j++ {
-		send[j] = byte(rng.Uint32())
-	}
+	rng.Read(send)
 
-	for i := 0; i < b.N; i++ {
+	for i := 0; i < (b.N / l); i++ {
 		if err := encio.Write(send, writer); err != nil {
-			b.Error(err)
+			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkBlockRead(b *testing.B) {
-	l := 32
+	l := 256
 
 	buff := new(encio.Buffer)
 
@@ -77,9 +75,7 @@ func BenchmarkBlockRead(b *testing.B) {
 	send := make([]byte, l)
 
 	rng := rand.New(rand.NewSource(256))
-	for j := 0; j < l; j++ {
-		send[j] = byte(rng.Uint32())
-	}
+	rng.Read(send)
 
 	if err := encio.Write(send, writer); err != nil {
 		b.Error(err)
@@ -87,9 +83,9 @@ func BenchmarkBlockRead(b *testing.B) {
 
 	reader := encio.NewBlockReader(encio.NewRepeatReader(*buff))
 
-	for i := 0; i < b.N; i++ {
+	for i := 0; i < (b.N / l); i++ {
 		if err := encio.Read(send, reader); err != nil {
-			b.Error(err)
+			b.Fatal(err)
 		}
 	}
 }

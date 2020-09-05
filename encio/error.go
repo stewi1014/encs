@@ -51,6 +51,10 @@ var (
 // err is typically the error returned from the io.Reader/io.Writer, or another error describing why the io.Reader/io.Writer isn't operating correctly.
 // Message has extra information about the error.
 func NewIOError(err error, device interface{}, message string, depth int) error {
+	if _, ok := err.(IOError); ok {
+		return err
+	}
+
 	if err == nil {
 		return NewError(errors.New("unknown error"), "refusing to create IOError with nil error", 0)
 	}

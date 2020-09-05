@@ -3,6 +3,7 @@ package encio
 import (
 	"fmt"
 	"io"
+	"unsafe"
 )
 
 const (
@@ -16,6 +17,11 @@ const (
 
 // NewBlockWriter returns a new BlockWriter writing to w.
 func NewBlockWriter(w io.Writer) *BlockWriter {
+	if bw, ok := w.(*BlockWriter); ok {
+		// Don't allow nesting
+		return bw
+	}
+
 	return &BlockWriter{
 		w: w,
 	}
@@ -27,21 +33,40 @@ func NewBlockWriter(w io.Writer) *BlockWriter {
 // It is stream-promiscuous; any number of BlockWriters can share the same buffer,
 // or change buffers mid-stream, and be read successfully.
 type BlockWriter struct {
-	buff []byte
+	buff Buffer
 	w    io.Writer
+}
+
+// Buff returns the internal buffer used by BlockWriter. It contains no persistent data between calls to Write and can be passed
+// back as an argument to write. This allows callers that are constructing a packet to avoid having an intermediate buffer.
+func (e *BlockWriter) Buff() *Buffer {
+	if len(e.buff) < 5 {
+		e.buff.Grow(5 - len(e.buff))
+	}
+	sliced := e.buff[5:5]
+	return &sliced
 }
 
 // Write implements io.Writer.
 // The buffer passed to Write is immediately written along with a 5 byte header in a single call to Write on the wrapped reader.
-func (e *BlockWriter) Write(buff []byte) (int, error) {
+func (e *BlockWriter) Write(buff []byte) (c int, err error) {
 	l := len(buff)
 	if l == 0 {
 		return 0, nil
 	}
 
 	e.buff = e.buff[:0]
-	e.grow(len(buff) + 5)
-	c := copy(e.buff[5:], buff)
+	e.buff.Grow(len(buff) + 5)
+	if unsafe.Pointer(&e.buff[5]) == unsafe.Pointer(&buff[0]) {
+		// same buffer. No need to copy.
+		c = len(buff)
+		e.buff = e.buff[:c+5]
+	} else {
+		e.buff = e.buff[:0]
+		e.buff.Grow(len(buff) + 5)
+		c = copy(e.buff[5:], buff)
+
+	}
 
 	e.escape(5, len(e.buff))
 
@@ -65,28 +90,20 @@ func (e *BlockWriter) escape(x, y int) {
 }
 
 func (e *BlockWriter) insert(size, index int) {
-	l := e.grow(size)
+	l := e.buff.Grow(size)
 	if index == l {
 		return
 	}
 	copy(e.buff[index+size:], e.buff[index:])
 }
 
-func (e *BlockWriter) grow(n int) int {
-	l := len(e.buff)
-	if cap(e.buff)-l > n {
-		e.buff = e.buff[:l+n]
-		return l
-	}
-
-	nb := make([]byte, l+n, cap(e.buff)*2+n)
-	copy(nb, e.buff)
-	e.buff = nb
-	return l
-}
-
 // NewBlockReader returns a new BlockReader reading from r.
 func NewBlockReader(r io.Reader) *BlockReader {
+	if br, ok := r.(*BlockReader); ok {
+		// Don't allow nesting
+		return br
+	}
+
 	return &BlockReader{
 		buff: make([]byte, 0, 16),
 		r:    r,
@@ -103,9 +120,32 @@ func NewBlockReader(r io.Reader) *BlockReader {
 // and any number of BlockReaders can begin reading at any point in the buffer while only returning fullly-formed payloads.
 // Any payload that BlockReader begins reading halfway through will be discarded until the next complete payload.
 type BlockReader struct {
-	buff []byte
+	buff Buffer
 	off  int
 	r    io.Reader
+}
+
+// ReadBytes operates the same as read, except instead of copying its internal buffer to a given slice, it returns it.
+// The buffer is overwritten on subsequent calls to ReadBytes or Read.
+func (e *BlockReader) ReadBytes() (*Buffer, error) {
+	n, err := e.getHeader()
+	if err != nil {
+		return nil, err
+	}
+	if n >= uint32(TooBig) {
+		return nil, NewIOError(ErrTooBig, e.r, fmt.Sprintf("payload of size %v", n), 0)
+	}
+
+	e.off = 0
+	e.buff = e.buff[:0]
+	e.buff.Grow(int(n))
+
+	if err := Read(e.buff, e.r); err != nil {
+		return nil, err
+	}
+
+	e.unescape(0, len(e.buff))
+	return &e.buff, nil
 }
 
 // Read implements io.Reader.
@@ -125,23 +165,10 @@ func (e *BlockReader) Read(buff []byte) (int, error) {
 		return c, nil
 	}
 
-	n, err := e.getHeader()
+	_, err := e.ReadBytes()
 	if err != nil {
 		return 0, err
 	}
-	if n >= uint32(TooBig) {
-		return 0, NewIOError(ErrTooBig, e.r, fmt.Sprintf("payload of size %v", n), 0)
-	}
-
-	e.off = 0
-	e.buff = e.buff[:0]
-	e.grow(int(n))
-
-	if err := Read(e.buff, e.r); err != nil {
-		return 0, err
-	}
-
-	e.unescape(0, len(e.buff))
 
 	c := copy(buff, e.buff)
 	e.off += c
@@ -188,7 +215,7 @@ func (e *BlockReader) getHeader() (uint32, error) {
 
 	h, size := DecodeVarUint32Header(e.buff[1])
 	if size != 0 {
-		l := e.grow(size)
+		l := e.buff.Grow(size)
 
 		end := len(e.buff)
 		for got := l; got < end; {
@@ -204,7 +231,7 @@ func (e *BlockReader) getHeader() (uint32, error) {
 				}
 			}
 
-			e.grow(end - got)
+			e.buff.Grow(end - got)
 		}
 
 		e.unescape(l, end)
@@ -230,17 +257,4 @@ func (e *BlockReader) unescape(x, y int) {
 			}
 		}
 	}
-}
-
-func (e *BlockReader) grow(n int) int {
-	l := len(e.buff)
-	if cap(e.buff)-l > n {
-		e.buff = e.buff[:l+n]
-		return l
-	}
-
-	nb := make([]byte, l+n, cap(e.buff)*2+n)
-	copy(nb, e.buff)
-	e.buff = nb
-	return l
 }

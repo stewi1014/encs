@@ -1,4 +1,4 @@
-# Encs
+# [Encs](https://git.lenqua.net/stewi1014/encs/)
 A type-safe and modular encoding library  
 [![GoDoc](https://godoc.org/github.com/stewi1014/encs?status.svg)](https://godoc.org/github.com/stewi1014/encs)
 [![pipeline status](https://git.lenqua.net/stewi1014/encs/badges/master/pipeline.svg)](https://git.lenqua.net/stewi1014/encs/-/commits/master)

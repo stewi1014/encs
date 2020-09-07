@@ -8,7 +8,7 @@ import (
 	"io"
 )
 
-// NewChecksumWriter returns a new ChecksumWriter using the given hasher, and writing to w.
+// NewChecksumWriter returns a new ChecksumWriter reading from r, using the given hasher for checking consistency.
 // The ChecksumWriter and ChecksumReader must share the same hasher.
 func NewChecksumWriter(w io.Writer, hasher hash.Hash) *ChecksumWriter {
 	if hasher == nil {
@@ -33,7 +33,7 @@ type ChecksumWriter struct {
 // BlockSize returns the hash's underlying block size.
 // The Write method can accept any amount
 // of data, but it may operate more efficiently if all writes
-// are a multiple of the block size depending on the hasher implementation.
+// are a multiple of the block size depending on the hasher.
 func (c *ChecksumWriter) BlockSize() int { return c.hasher.BlockSize() }
 
 // Write implements io.Writer.
@@ -75,8 +75,7 @@ func (c *ChecksumWriter) Write(buff []byte) (int, error) {
 	return c.w.Write(buff)
 }
 
-// NewChecksumReader returns a ChecksumReader using the given hasher,
-// and reading from r.
+// NewChecksumReader returns a ChecksumReader writing from w, using the given hasher for checking consistency.
 func NewChecksumReader(r io.Reader, hasher hash.Hash) *ChecksumReader {
 	if hasher == nil {
 		hasher = crc32.New(crc32.IEEETable)
@@ -104,11 +103,11 @@ func (c *ChecksumReader) reset() {
 }
 
 // Read implements io.Reader.
-// If received data is out of order, or if data has been corrupted as discerned by the hashing algorithm,
-// Read will return a wrapped ErrMalformed.
+// If received data is out of order, or if data has been corrupted as discerned by the hasher,
+// it will return a wrapped ErrMalformed.
 //
-// If the reader returns io.ErrUnexpectedEOF or io.EOF, Read replaces the error with ErrMalformed if the header's reported size doesn't match the number of received bytes.
-// A call to Read after the last call returned an error will ignore the received packet number, and continue checking order on subsequent calls.
+// If the reader returns io.ErrUnexpectedEOF or io.EOF, it replaces the error with ErrMalformed if the header's reported size doesn't match the number of received bytes.
+// A call after the last call returned an error will ignore the next received packet number, and continue checking order on subsequent calls.
 func (c *ChecksumReader) Read(buff []byte) (int, error) {
 	if len(c.buff)-c.off > 0 {
 		n := copy(buff, c.buff[c.off:])
@@ -134,7 +133,7 @@ func (c *ChecksumReader) Read(buff []byte) (int, error) {
 	if l > int(TooBig) {
 		c.reset()
 		return 0, NewIOError(
-			ErrMalformed,
+			ErrTooBig,
 			c.r,
 			fmt.Sprintf(
 				"received block size of %v is too big!",

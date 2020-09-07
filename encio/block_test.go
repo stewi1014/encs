@@ -18,7 +18,7 @@ func TestBlock(t *testing.T) {
 	reader := encio.NewBlockReader(buff)
 	writer := encio.NewBlockWriter(buff)
 
-	maxlen := 100000
+	maxlen := 10000
 
 	rng := rand.New(rand.NewSource(256))
 	send := make([]byte, maxlen)

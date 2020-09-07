@@ -345,7 +345,7 @@ const (
 // If not, it then records the pointer, and encodes using the underlying Encodable returned from newFunc.
 //
 // If a pointer is found to be already encoded, it doesn't call the underlying at all, and instead writes the index, the id, of the pointer,
-// which can be used to find the same value which would have been previously decoded.
+// which can be used to find the same value which would have been previously decoded during decode.
 type Recursive struct {
 	new  func() *Encodable
 	ty   reflect.Type
@@ -355,7 +355,7 @@ type Recursive struct {
 }
 
 // Size implements Encodable.
-// Recursive types have a theoretical infinite size.
+// Recursive types have a theoretical infinite maximum size.
 func (e *Recursive) Size() int { return -1 << 31 }
 
 // Type implements Encodable.

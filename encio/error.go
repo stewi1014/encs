@@ -14,49 +14,39 @@ import (
 // Error indicates a caller should stop using an Encodable or use it in a different way.
 //
 // In this way, errors can be checked with
-// ```
-// var encErr Error
-// var ioErr IOError
-// if errors.As(err, encError) {
-// 	// handle encoding error
-// } else if errors.As(err, ioErr) {
-//	// handle io error
-// }
-// ```
+//  var encErr Error
+//  var ioErr IOError
+//  if errors.As(err, encError) {
+// 	 // handle encoding error
+//  } else if errors.As(err, ioErr) {
+//	 // handle io error
+//  }
 //
 // Panics are only used when there is a clear misuse of the library; programmer error.
 var (
-	// ErrMalformed is returned when the read data is impossible to decode.
+	// ErrMalformed is returned when the read data is impossible to decode or use.
 	ErrMalformed = errors.New("malformed")
 
 	// ErrBadType is returned when a type, where possible to detect, is wrong, unresolvable or inappropriate.
-	// Due to the usage of unsafe.Pointer, it is not usually possible to detect incorrect types.
-	// If this error is seen, it should be taken seriously; encoding of incorrect types has undefined behaviour.
 	ErrBadType = errors.New("bad type")
 
 	// ErrNilPointer is returned if a pointer that should not be nil is nil.
 	ErrNilPointer = errors.New("nil pointer")
 
-	// ErrBadConfig is returned when the config cannot be used to encode the given encodable.
-	// i.e. Config.Resolver = nil when creating Interface Encodables.
-	ErrBadConfig = errors.New("bad config")
-
-	// ErrHashColission is returned when two hashes collide.
-	// If this is returned (or panic'd), investigation into encs is required;
-	// this should never occur, and is here for completeness.
-	ErrHashColission = errors.New("hash colission")
+	// ErrTooBig is returned when a check agaist TooBig fails.
+	ErrTooBig = errors.New("too big")
 )
 
 // NewIOError returns an IOError wrapping err with the given message.
 // err is typically the error returned from the io.Reader/io.Writer, or another error describing why the io.Reader/io.Writer isn't operating correctly.
-// Message has extra information about the error.
+// Message has extra information about the error. Depth is how many functions to follow up the stack when finding one to blame; see GetCaller.
 func NewIOError(err error, device interface{}, message string, depth int) error {
 	if _, ok := err.(IOError); ok {
 		return err
 	}
 
 	if err == nil {
-		return NewError(errors.New("unknown error"), "refusing to create IOError with nil error", 0)
+		return NewError(errors.New("unknown error"), "tried to create IOError with nil error", 0)
 	}
 
 	location := GetCaller(depth + 1)
@@ -112,8 +102,7 @@ func (e IOError) Unwrap() error {
 }
 
 // NewError returns an Error wrapping err with message and caller.
-// Depth is how deep the stack is after the logical location of the error; which function to blame.
-// i.e. 0 will use the calling function of NewError, 1 the calling function of that etc...
+// Depth is how deep the stack is after the logical location of the error; which function to blame. See GetCaller.
 func NewError(err error, message string, depth int) error {
 	if err == nil {
 		return NewError(errors.New("unknown error"), "refusing to create Error with nil error", 1)
@@ -130,7 +119,9 @@ func NewError(err error, message string, depth int) error {
 
 // Error is returned for errors originating from the usage of encs.
 //
-// Error implements Unwrap(), so errors.Is can be used; e.g. errors.Is(err, encio.ErrBadType) to check if an unregistered type was received.
+// Error has an Unwrap() method, so e.g.
+//  errors.Is(err, encio.ErrMalformed)
+// can be used to check if an unregistered type was received.
 type Error struct {
 	Err      error
 	Message  string

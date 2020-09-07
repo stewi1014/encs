@@ -48,7 +48,7 @@ func (b *Buffer) ReadFrom(r io.Reader) (read int64, err error) {
 		take *= 2
 		if uintptr(take) > TooBig {
 			return read, NewIOError(
-				errors.New("too big"),
+				ErrTooBig,
 				r,
 				fmt.Sprintf(
 					"refusing to buffer %v bytes as it's too big",
@@ -73,7 +73,7 @@ func (b *Buffer) Len() int {
 	return len(*b)
 }
 
-// Cap return shte capacity of the buffer.
+// Cap returns the capacity of the buffer.
 func (b *Buffer) Cap() int {
 	if b == nil {
 		return 0
@@ -96,7 +96,7 @@ func (b *Buffer) Grow(n int) int {
 	return l
 }
 
-// NewRepeatReader return a RepeatReader that repeatedly reads from buff.
+// NewRepeatReader returns a RepeatReader using buff as its data.
 func NewRepeatReader(buff []byte) *RepeatReader {
 	return &RepeatReader{
 		buff: buff,
@@ -110,7 +110,7 @@ type RepeatReader struct {
 }
 
 // Read implements io.Reader.
-// It reads from the internal buffer. When the end of the buffer is reached, it return io.EOF.
+// It reads from the internal buffer. When the end of the buffer is reached, it returns io.EOF.
 // Subsequent calls will begin reading from the beginning again.
 func (r *RepeatReader) Read(buff []byte) (int, error) {
 	n := copy(buff, r.buff[r.off:])

@@ -1,5 +1,4 @@
 // Package encio provides simple methods for encoding-relevant input and output, as well as error types.
-// It is split from encodable to avoid its cluttered namespace.
 package encio
 
 import (
@@ -61,7 +60,7 @@ func Read(buff []byte, r io.Reader) error {
 	return nil
 }
 
-// Write writes to w from buff, handling errors of io.Writer with little overhead in almost all cases.
+// Write writes to w from buff, handling errors of io.Writer with as little overhead as possible.
 // In an ideal write, only a single int equality check is performed. It returns any error from Write().
 func Write(buff []byte, w io.Writer) error {
 	n, err := w.Write(buff)

@@ -57,10 +57,12 @@ func (e *String) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	if uintptr(l) > encio.TooBig {
-		return encio.IOError{
-			Err:     encio.ErrMalformed,
-			Message: fmt.Sprintf("string with length %v is too big", l),
-		}
+		return encio.NewIOError(
+			encio.ErrTooBig,
+			r,
+			fmt.Sprintf("string with length %v is too big", l),
+			0,
+		)
 	}
 
 	// Create the buffer to hold the string.
@@ -221,7 +223,7 @@ func (e *BinaryMarshaler) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	l |= uint32(e.buff[2]) << 16
 	l |= uint32(e.buff[3]) << 24
 	if uintptr(l) > encio.TooBig {
-		return encio.NewError(encio.ErrMalformed, fmt.Sprintf("buffer with length %v is too big", l), 0)
+		return encio.NewIOError(encio.ErrTooBig, r, fmt.Sprintf("buffer with length %v is too big", l), 0)
 	}
 
 	if cap(e.mbuff) < int(l) {

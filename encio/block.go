@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	// EscapeByte is the byte used to define the start of a block.
-	// It should be as uncommon as possible.
-	EscapeByte byte = 253
+	// escapeByte is the byte used to define the start of a block.
+	// It should be reasonably uncommon.
+	escapeByte byte = 23
 
 	// this must be an invalid length
 	escapeEscape = 0
@@ -22,13 +22,17 @@ func NewBlockWriter(w io.Writer) *BlockWriter {
 }
 
 // BlockWriter provides a method for writing data in defined payloads.
+// Headers can be placed at the start of the payload passed to write,
+// and they will always be at the beginning of the payload when read using BlockReader.
+// It is stream-promiscuous; any number of BlockWriters can share the same buffer,
+// or change buffers mid-stream, and be read successfully.
 type BlockWriter struct {
 	buff []byte
 	w    io.Writer
 }
 
 // Write implements io.Writer.
-// The buffer passed to Write is immediately written along with a 5 byte header.
+// The buffer passed to Write is immediately written along with a 5 byte header in a single call to Write on the wrapped reader.
 func (e *BlockWriter) Write(buff []byte) (int, error) {
 	l := len(buff)
 	if l == 0 {
@@ -43,7 +47,7 @@ func (e *BlockWriter) Write(buff []byte) (int, error) {
 
 	n := EncodeVarUint32(e.buff, uint32(len(e.buff)-5))
 	copy(e.buff[5-n:5], e.buff[0:n])
-	e.buff[4-n] = EscapeByte
+	e.buff[4-n] = escapeByte
 
 	e.escape(5-n, 5)
 
@@ -52,7 +56,7 @@ func (e *BlockWriter) Write(buff []byte) (int, error) {
 
 func (e *BlockWriter) escape(x, y int) {
 	for i := x; i < y; i++ {
-		if e.buff[i] == EscapeByte {
+		if e.buff[i] == escapeByte {
 			e.insert(1, i+1)
 			e.buff[i+1] = escapeEscape
 			y++
@@ -90,6 +94,14 @@ func NewBlockReader(r io.Reader) *BlockReader {
 }
 
 // BlockReader provides a method for reading data in defined payloads.
+// It reads up to the end of the payload that was passed to a call to Write, returns io.EOF, then continues reading the next payload on the next call.
+// Typically, this is undesierable behaviour for a stream, as the assumption that when io.EOF is returned the Reader has no more data is false.
+// Callers should be aware of this when using BlockReader.
+//
+// This does, however, allow some interesting things. BlockReader is buffer-promiscuous.
+// In the extreme, this means that any number of BlockWriters can be writing to a single buffer in any order,
+// and any number of BlockReaders can begin reading at any point in the buffer while only returning fullly-formed payloads.
+// Any payload that BlockReader begins reading halfway through will be discarded until the next complete payload.
 type BlockReader struct {
 	buff []byte
 	off  int
@@ -97,9 +109,12 @@ type BlockReader struct {
 }
 
 // Read implements io.Reader.
+//
 // If a previous call to Read has not completely read the payload it continues reading the previous payload,
-// stopping at the end of the payload and returning EOF. If the previous payload has been read,
+// stopping at the end of the payload and returning io.EOF. If the previous payload has been read,
 // it begins reading the next payload.
+//
+// If the underlying reader returns io.EOF, read will return 0, io.EOF when the end of the current payload is reached.
 func (e *BlockReader) Read(buff []byte) (int, error) {
 	if e.len() > 0 {
 		c := copy(buff, e.buff[e.off:])
@@ -115,7 +130,7 @@ func (e *BlockReader) Read(buff []byte) (int, error) {
 		return 0, err
 	}
 	if n >= uint32(TooBig) {
-		return 0, NewError(ErrMalformed, fmt.Sprintf("payload of size %v is too big", n), 0)
+		return 0, NewIOError(ErrTooBig, e.r, fmt.Sprintf("payload of size %v", n), 0)
 	}
 
 	e.off = 0
@@ -140,26 +155,38 @@ func (e *BlockReader) len() int { return len(e.buff) - e.off }
 
 func (e *BlockReader) getHeader() (uint32, error) {
 	e.buff = e.buff[:2]
-	if err := Read(e.buff, e.r); err != nil {
+	n, err := e.r.Read(e.buff)
+	if err != nil {
 		return 0, err
 	}
+	if n != 2 {
+		return 0, io.ErrNoProgress
+	}
 
-	for e.buff[0] != EscapeByte || e.buff[1] == escapeEscape {
+	for e.buff[0] != escapeByte || e.buff[1] == escapeEscape {
 		e.buff[0] = e.buff[1]
-		if err := Read(e.buff[1:], e.r); err != nil {
+		n, err = e.r.Read(e.buff[1:])
+		if err != nil {
 			return 0, err
+		}
+		if n != 1 {
+			return 0, io.ErrNoProgress
 		}
 	}
 
-	if e.buff[1] == EscapeByte {
-		if err := Read(e.buff[1:2], e.r); err != nil {
+	if e.buff[1] == escapeByte {
+		n, err = e.r.Read(e.buff[1:2])
+		if err != nil {
 			return 0, err
 		}
+		if n != 1 {
+			return 0, io.ErrNoProgress
+		}
 
-		e.buff[1] = EscapeByte
+		e.buff[1] = escapeByte
 	}
 
-	n, size := DecodeVarUint32Header(e.buff[1])
+	h, size := DecodeVarUint32Header(e.buff[1])
 	if size != 0 {
 		l := e.grow(size)
 
@@ -172,7 +199,7 @@ func (e *BlockReader) getHeader() (uint32, error) {
 			i := got
 			got = end
 			for ; i < got; i++ {
-				if e.buff[i] == EscapeByte {
+				if e.buff[i] == escapeByte {
 					end++
 				}
 			}
@@ -182,15 +209,15 @@ func (e *BlockReader) getHeader() (uint32, error) {
 
 		e.unescape(l, end)
 
-		n, _ = DecodeVarUint32(e.buff[1:])
+		h, _ = DecodeVarUint32(e.buff[1:])
 	}
 
-	return n, nil
+	return h, nil
 }
 
 func (e *BlockReader) unescape(x, y int) {
 	for i := x; i < y; i++ {
-		if e.buff[i] == EscapeByte {
+		if e.buff[i] == escapeByte {
 			if i == y-1 {
 				return
 			}

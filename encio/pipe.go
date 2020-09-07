@@ -7,8 +7,8 @@ import (
 
 // Pipe returns a synchronous, buffered pipe.
 // A call to close results in subsequent calls to Write returning io.ErrClosedPipe,
-// while read will continue reading until the buffer until returning io.ErrClosedPipe.
-// It simply uses mutexes.
+// while read will continue reading the buffer before returning io.ErrClosedPipe when it is empty.
+// It uses mutexes.
 func Pipe() io.ReadWriteCloser {
 	return &pipe{
 		cond: sync.NewCond(&sync.Mutex{}),

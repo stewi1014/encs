@@ -16,7 +16,6 @@ func NewVarint(ty reflect.Type) *Varint {
 		buff: make([]byte, 9),
 	}
 
-	// I don't like this one bit, but I prefer it to
 	switch ty.Kind() {
 	case reflect.Int:
 		v.assignFloat32 = func(n float32, ptr unsafe.Pointer) { *(*int)(ptr) = int(n) }
@@ -80,10 +79,9 @@ func NewVarint(ty reflect.Type) *Varint {
 }
 
 // Varint is an Encodable for integer and float types.
-// It can decode from int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint32, uint64, uintptr, float32 and float64.
+// It can decode from a Variant initialised with int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint32, uint64, uintptr, float32 and float64.
 // It can only encode from the type is it initialised with.
 type Varint struct {
-	//
 	ty            reflect.Type
 	buff          []byte
 	bits          uint64
@@ -180,7 +178,7 @@ func (e *Varint) Decode(ptr unsafe.Pointer, r io.Reader) error {
 			for i := e.buff[0]&varSizeMask + 2; i < (byte(shift) + e.buff[0]&varSizeMask + 2); i++ {
 				e.buff[i] = fill
 			}
-			e.buff[0] += uint8(shift)
+			e.buff[0] += byte(shift)
 		case shift < 0 && e.header&varFloat == 0:
 			e.buff[0] += byte(shift) // actually a subtraction.
 		case shift < 0 && e.header&varFloat != 0:

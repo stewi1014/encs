@@ -1,32 +1,47 @@
 # [Encs](https://git.lenqua.net/stewi1014/encs/)
-A type-safe and modular encoding library  
+A featureful, fast, simple and modular encoding library  
 [![GoDoc](https://godoc.org/github.com/stewi1014/encs?status.svg)](https://godoc.org/github.com/stewi1014/encs)
 [![Go Report Card](https://goreportcard.com/badge/git.lenqua.net/stewi1014/encs)](https://goreportcard.com/report/git.lenqua.net/stewi1014/encs)
 [![pipeline status](https://git.lenqua.net/stewi1014/encs/badges/master/pipeline.svg)](https://git.lenqua.net/stewi1014/encs/-/commits/master)
 [![coverage report](https://git.lenqua.net/stewi1014/encs/badges/master/coverage.svg)](https://git.lenqua.net/stewi1014/encs/-/commits/master)
 
-Encs aims to provide a type-strict, modular and feature-full encoding library with as little overhead as possible.
+Encs provides methods for serialisation of golang types. 
+A large part of the motivation of this library is that many encoding libraries seem to either lack features, be slow, hard to use, or have little opportunity for user expandability. If you don't need to serialise across languages, why not have all four?
 
-Goals include:
-Type-safe: The type is encoded along with the value, and decoders will decode only into the same type that was sent, or in the case of interface encoding,
-fill the interface with the same type as was sent. All types to be received must be Registered with Register()
+# Goals
+ * ## Keep-It-Simple-Stupid
+	The default Encoder and Decoder provide out of the box functionality, and aims to directly compete with [golang/gob](https://golang.org/pkg/encoding/gob/). It is used in the same way, and by default operates in the same way with the exception of some extra features such as support for recursive values and types, and encoding of types unsupported in gob, e.g. channels.
 
-Stream-promiscuous: Encoded messages are completely self-contained, and encoded streams can be picked up by a Decoder mid-stream and decoded successfully,
-allowing a static Encoder to write to a dynamic number of receiving clients, and a dynamic number of sending clients to be decoded by a single Decoder.
+ * ## Nothing is Out of Scope
+	If it exists in the golang type system, encs aims to encode it. Recursive types, Channels, reflect.Type and reflect.Value types are all encodable, and if you've got an io.ReadWriter, Functions too. Encs is tested agaist recursive values and types, and recreates pointer cycles accurately when decoding. A recursive struct, map, slice or reflect.Value are all still recursive in the same way when they arrive. Want to send a reflect.Value that is the value of itself? No worries.
 
-Modular and Open: Methods for encoding are exposed in sub-packages, allowing their low-level encoding methods to be used to create custom encoding systems for a given use case,
-without the overhead or added complexity of an Encoder or Decoder. The simple payload structure also allows easy re-implementation of the encs protocol.
+ * ## Type Safe
+	Encs will only decode into or create the exact same type as was sent, or not if you don't want it to. With strict typing, used by default, every single element type is compared recursively through its child types, as well as its name through the use of a hash. In lieu of a name, encs will happily encode to and from anonymous types. Don't worry about speed though, the reflect.Type Encodable is actually one of the fastest encoders in the library thanks to go map performance.
 
-encs/encodable provides encoders for specific types, and methods for encoding reflect.Type values.
+ * ## Stream Promiscuous
+	Streams have no state; each encoded value is completely independent, and decodable without any extra information. Encs streams can be picked up by a Decoder mid-stream and decoded successfully, allowing a single Encoder to write to a dynamic number of receiving Decoders, and a dynamic number of sending Encoders to be decoded by a single Decoder.
 
-encs/encio provides io and error types for encoding and related tasks
+ * ## Modular
+	Each golang type has an implementation of the encs/encodable.Encodable interface dedicated to encoding the type. If you want to extend encs, 3rd party Encodables for types can be written and integrated into it. Encodables do not need to worry about pointer cycles, type safety, or infinite recursion. This is handled by encs/encodable.Source, which again, is self contained, and swappable with other implementations. Source handles the generation of Encodables for types that contain child types, e.g. a struct, which has a child type for each field. Extending the builtin implementation of Source instead of writing one from scratch is reccomended, but you can go mad with it if you want; all Encodables are exported so use them how you want.
 
-Example:
+ * ## Open
+	Methods for encoding are exposed in sub-packages, allowing the lower-level encoding methods to be used. If you have a look at the default encs Encoder/Decoder, you'll find it's just gluing together a few modules for typical use cases. If you just have a single struct type you want to send, you can skip the shenanigans and just use encs/encodable.NewStruct().
+
+ * ## Pure Go
+	Encs is written entirely in Golang, and imports only the standard library with the exception of tests. Given the somewhat extreme nature of some recursive test cases, testing has been somewhat difficult with even reflect.DeepEqual in go 1.14 recursing infinitely in some cases. [maxatome](https://github.com/maxatome) has been helpful with [go-testdeep](https://github.com/maxatome/go-testdeep) in supporting these cases.
+
+# Packages
+
+## encs/encodable
+Contains the low-level encoding logic for golang types.
+It provides encoders for golang types, and methods for resolving recursive types and values.
+
+## encs/encio
+Provides io methods and error types for encoding and related tasks, including multiplexing and functions for encoding integers.
+
+## Usage
 ```go
 buff := new(bytes.Buffer)
-
-// This would typically go in an init() function.
-encs.Register(ExampleStruct{})
 
 birthday, _ := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
 
@@ -39,7 +54,7 @@ example := ExampleStruct{
 	Birthday: birthday,
 }
 
-enc := encs.NewEncoder(buff, nil)
+enc := encs.NewEncoder(buff)
 
 err := enc.Encode(&example)
 if err != nil {
@@ -47,7 +62,7 @@ if err != nil {
 	return
 }
 
-dec := encs.NewDecoder(buff, nil)
+dec := encs.NewDecoder(buff)
 
 var decodedExample ExampleStruct
 err = dec.Decode(&decodedExample)

@@ -101,6 +101,7 @@ type Varuint32 struct {
 }
 
 // Encode writes the given uint32 to w.
+// It returns the number of bytes written, and any write errors.
 func (e *Varuint32) Encode(w io.Writer, n uint32) (int, error) {
 	l := EncodeVarUint32(e.buff, n)
 	return l, Write(e.buff[:l], w)
@@ -123,14 +124,17 @@ func (e *Varuint32) Decode(r io.Reader) (uint32, error) {
 
 const (
 	// MaxVarint is the largest uint32 that can be encoded with EncodeVarUint32.
-	MaxVarint = 1<<30 - 1
+	MaxVarint = uint32(1<<30 - 1)
 	sizeMask  = (1<<2 - 1)
 )
 
-// EncodeVarUint32 encodes the given uint32 in variable-length format to buff.
-// It returns the encoded length.
-// The two most significant bits are not encoded; n must not be larger than MaxVarint.
-// Buff must be atleast 4 bytes big.
+// EncodeVarUint32 encodes the given uint32 in variable-length format to buff. It returns the encoded length.
+// It's primary use case is writing the length of a following message.
+//
+// EncodeVarUint32 is fast to encode, especially for small numbers, and only writes up to 4 bytes, but at the cost of the 2 most sigificant bits in n.
+// They are not encoded; n must not be larger than MaxVarint.
+//
+// Buff must be large enough to write the int, as a general rule, it should be 4 bytes large.
 func EncodeVarUint32(buff []byte, n uint32) int {
 	n <<= 2
 	n |= uint32(bits.Len32(n>>1) / 8)
@@ -169,6 +173,8 @@ func DecodeVarUint32Header(b byte) (n uint32, size int) {
 }
 
 // DecodeVarUint32 decodes a uint32 from the given buffer.
+// It decodes the header the same way as DecodeVarUint32Header, however it goes ahead and reads more data if it's needed,
+// always returning the decoded number.
 func DecodeVarUint32(buff []byte) (n uint32, size int) {
 	switch buff[0] & sizeMask {
 	case 0:

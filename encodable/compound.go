@@ -1,6 +1,7 @@
 package encodable
 
 import (
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -174,7 +175,7 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	if uintptr(l)*((*e.key).Type().Size()+(*e.val).Type().Size()) > encio.TooBig {
-		return encio.NewIOError(encio.ErrMalformed, r, fmt.Sprintf("map size of %v is too big", l), 0)
+		return encio.NewIOError(encio.ErrTooBig, r, fmt.Sprintf("map size of %v is too big", l), 0)
 	}
 
 	v := reflect.MakeMapWithSize(e.t, int(l))
@@ -395,10 +396,12 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	if uintptr(l)*((*e.elem).Type().Size()) > uintptr(encio.TooBig) {
-		return encio.IOError{
-			Err:     encio.ErrMalformed,
-			Message: fmt.Sprintf("slice of length %v (%v bytes) is too big", l, int(l)*int((*e.elem).Type().Size())),
-		}
+		return encio.NewIOError(
+			encio.ErrTooBig,
+			r,
+			fmt.Sprintf("slice of length %v (%v bytes) is too big", l, int(l)*int((*e.elem).Type().Size())),
+			0,
+		)
 	}
 
 	length := int(l)
@@ -561,7 +564,7 @@ func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
 		for _, existing := range e.fields {
 			if existing.id == f.id {
 				panic(encio.NewError(
-					encio.ErrHashColission,
+					errors.New("hash collision"),
 					fmt.Sprintf("struct field %v with type %v has same hash as previous field with type %v in struct %v", field.Name, field.Type.String(), (*existing.enc).Type(), ty.String()),
 					0,
 				))
@@ -576,6 +579,8 @@ func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
 
 // StructLoose is an Encodable for structs.
 // It encodes fields by a generated ID, and maps fields with the same name.
+// Fields received that do not exist locally are ignored,
+// and fields that are expected that aren't received are set to their zero values.
 // Exported fields can be ignored using the tag `encs:"false"`, and
 // unexported fields can be included with the tag `encs:"true"`.
 type StructLoose struct {
@@ -694,7 +699,9 @@ func NewStructStrict(ty reflect.Type, config Config, src Source) *StructStrict {
 }
 
 // StructStrict is an Encodable for structs.
-// It encodes fields in a determenistic order.
+// It encodes fields in a determenistic order with no ID.
+// There must be no discrepancy in the struct's type between Encode and Decode.
+// Use Type to check types if unsure of exact simmilarity.
 // Exported fields can be ignored using the tag `encs:"false"`, and
 // unexported fields can be included with the tag `encs:"true"`.
 type StructStrict struct {

@@ -504,8 +504,6 @@ func getVarintTestCases() (testCases []varintTestCase) {
 }
 
 func TestVarint(t *testing.T) {
-	// I'd really like to iterate over all possible numbers.
-
 	testCases := getVarintTestCases()
 
 	// Use a caching source so Varint is reused.

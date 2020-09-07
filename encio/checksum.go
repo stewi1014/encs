@@ -53,26 +53,37 @@ func (c *ChecksumWriter) Write(buff []byte) (int, error) {
 	c.header[hs+4] = byte(c.count)
 	c.header[hs+5] = byte(c.count >> 8)
 
-	c.hasher.Reset()
-	_, err := c.hasher.Write(c.header[hs:])
+	err := c.writeChecksum(c.header[hs:], buff)
 	if err != nil {
 		return 0, err
 	}
 
-	_, err = c.hasher.Write(buff)
+	err = Write(c.header, c.w)
 	if err != nil {
 		return 0, err
+	}
+
+	return c.w.Write(buff)
+}
+
+func (c *ChecksumWriter) writeChecksum(buffs ...[]byte) error {
+	c.hasher.Reset()
+
+	for _, buff := range buffs {
+		n, err := c.hasher.Write(buff)
+		if n != len(buff) || err != nil {
+			if err == nil {
+				err = NewError(io.ErrShortWrite, fmt.Sprintf("hasher reported %v bytes written when given %v bytes", n, len(buff)), 0)
+			}
+			return err
+		}
 	}
 
 	copy(c.header, c.hasher.Sum(c.header[:0]))
 
 	c.count++
 
-	if err := Write(c.header, c.w); err != nil {
-		return 0, err
-	}
-
-	return c.w.Write(buff)
+	return nil
 }
 
 // NewChecksumReader returns a ChecksumReader writing from w, using the given hasher for checking consistency.
@@ -119,6 +130,59 @@ func (c *ChecksumReader) Read(buff []byte) (int, error) {
 		return 0, nil
 	}
 
+	return c.read(buff)
+}
+
+func (c *ChecksumReader) read(buff []byte) (int, error) {
+	hs := c.hasher.Size()
+
+	l, err := c.readHeader()
+	if err != nil {
+		return 0, err
+	}
+
+	if err := c.readBody(l); err != nil {
+		return 0, err
+	}
+
+	if err := c.check(); err != nil {
+		return 0, err
+	}
+
+	c.off = hs + 6
+	n := copy(buff, c.buff[c.off:])
+	c.off += n
+	return n, nil
+}
+
+func (c *ChecksumReader) check() error {
+	hs := c.hasher.Size()
+
+	c.hasher.Reset()
+	_, err := c.hasher.Write(c.buff[hs:])
+	if err != nil {
+		c.reset()
+		return err
+	}
+
+	sum := c.hasher.Sum(make([]byte, 0, hs))
+
+	for i := 0; i < len(sum); i++ {
+		if c.buff[i] != sum[i] {
+			c.reset()
+			return NewIOError(
+				ErrMalformed,
+				c.r,
+				"checksums do not match",
+				0,
+			)
+		}
+	}
+
+	return nil
+}
+
+func (c *ChecksumReader) readHeader() (int, error) {
 	hs := c.hasher.Size()
 
 	c.buff = c.buff[:0]
@@ -163,44 +227,30 @@ func (c *ChecksumReader) Read(buff []byte) (int, error) {
 	}
 	c.count = int(count + 1)
 
-	c.buff.Grow(l)
+	return l, nil
+}
 
-	if err := Read(c.buff[hs+6:], c.r); err != nil {
+func (c *ChecksumReader) readBody(n int) error {
+	hs := c.headerSize()
+
+	c.buff.Grow(n)
+
+	if err := Read(c.buff[hs:], c.r); err != nil {
 		c.reset()
 		if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
-			return 0, NewIOError(
+			return NewIOError(
 				ErrMalformed,
 				c.r,
-				fmt.Sprintf("header says the payload is %v bytes big, but got \"%v\" before reading it all.", l, err),
+				fmt.Sprintf("header says the payload is %v bytes big, but got \"%v\" before reading it all.", n, err),
 				0,
 			)
 		}
-		return 0, err
+		return err
 	}
 
-	c.hasher.Reset()
-	_, err := c.hasher.Write(c.buff[hs:])
-	if err != nil {
-		c.reset()
-		return 0, err
-	}
+	return nil
+}
 
-	sum := c.hasher.Sum(make([]byte, 0, hs))
-
-	for i := 0; i < len(sum); i++ {
-		if c.buff[i] != sum[i] {
-			c.reset()
-			return 0, NewIOError(
-				ErrMalformed,
-				c.r,
-				"checksums do not match",
-				0,
-			)
-		}
-	}
-
-	c.off = hs + 6
-	n := copy(buff, c.buff[c.off:])
-	c.off += n
-	return n, nil
+func (c *ChecksumReader) headerSize() int {
+	return c.hasher.Size() + 4 + 2
 }

@@ -104,6 +104,28 @@ func TestRecursive(t *testing.T) {
 				return s
 			}(),
 		},
+		{
+			desc: "Map value recurse where all values are reflect.Values",
+			encode: func() *reflect.Value {
+				s := RecursiveTest4{
+					B: reflect.ValueOf("hello"),
+				}
+
+				m := make(map[int]reflect.Value, 1)
+				s.M = reflect.ValueOf(m)
+				m[0] = reflect.ValueOf(s)
+				sv := reflect.ValueOf(s)
+				return &sv
+			}(),
+		},
+		{
+			desc: "reflect.Value which is the value of itself",
+			encode: func() *reflect.Value {
+				var v reflect.Value
+				v = reflect.ValueOf(&v).Elem()
+				return &v
+			}(),
+		},
 	}
 	for _, config := range configPermutations {
 		for _, tC := range testCases {
@@ -113,67 +135,5 @@ func TestRecursive(t *testing.T) {
 				testEqual(tC.encode, tC.encode, *enc, t)
 			})
 		}
-
-		t.Run(getDescription("Map value recurse where all values are reflect.Values", config), func(t *testing.T) {
-			s := RecursiveTest4{
-				B: reflect.ValueOf("hello"),
-			}
-
-			m := make(map[int]reflect.Value, 1)
-			s.M = reflect.ValueOf(m)
-			m[0] = reflect.ValueOf(s)
-			sv := reflect.ValueOf(s)
-
-			src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-			enc := src.NewEncodable(reflect.TypeOf(sv), config, nil)
-			got := testNoErr(&sv, *enc, t)
-
-			gotval := *got.(*reflect.Value)
-			gots := gotval.Interface().(RecursiveTest4)
-			if gots.B.String() != "hello" {
-				t.Error("struct field B is not 'hello'")
-			}
-
-			if !gots.M.IsValid() {
-				t.Fatalf("map is invalid")
-			}
-
-			if gots.M.IsNil() {
-				t.Fatalf("map is nil")
-			}
-
-			gotm := gots.M.Interface().(map[int]reflect.Value)
-			if len(gotm) != 1 {
-				t.Fatalf("map length is %v, not 1", len(gotm))
-			}
-
-			gots2 := gotm[0].Interface().(RecursiveTest4)
-			gotm2 := gots2.M.Interface().(map[int]reflect.Value)
-
-			if reflect.ValueOf(&gotm).Elem().Pointer() != reflect.ValueOf(&gotm2).Elem().Pointer() {
-				t.Errorf("maps are not the same map; first is %x, and embedded is %x", reflect.ValueOf(&gotm).Elem().Pointer(), reflect.ValueOf(&gotm2).Elem().Pointer())
-			}
-		})
-
-		// I'm really trying here
-		t.Run(getDescription("reflect.Value which is the value of itself", config), func(t *testing.T) {
-			var v reflect.Value
-			v = reflect.ValueOf(&v).Elem()
-
-			src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-			enc := src.NewEncodable(reflect.TypeOf(v), config, nil)
-
-			got := testNoErr(&v, *enc, t)
-
-			gotval := got.(*reflect.Value)
-			if gotval.Type() != reflect.TypeOf(reflect.Value{}) {
-				t.Error("value is of wrong type")
-			}
-
-			next := gotval.Interface().(reflect.Value)
-			if gotval.UnsafeAddr() != next.UnsafeAddr() {
-				t.Errorf("value is not of itself")
-			}
-		})
 	}
 }

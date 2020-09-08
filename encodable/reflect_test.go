@@ -1,7 +1,6 @@
 package encodable_test
 
 import (
-	"bytes"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -9,6 +8,13 @@ import (
 
 	"github.com/stewi1014/encs/encodable"
 )
+
+// reflectValueSelf returns a reflect.Value that is the value of itself.
+func reflectValueSelf() reflect.Value {
+	var v reflect.Value
+	v = reflect.ValueOf(v)
+	return v
+}
 
 var testCases = []interface{}{
 	true,
@@ -33,6 +39,7 @@ var testCases = []interface{}{
 	map[[8]byte]string{},
 	new(string),
 	nil,
+	reflectValueSelf(),
 }
 
 func testTypes() []reflect.Type {
@@ -52,24 +59,23 @@ func testValues() []reflect.Value {
 }
 
 func TestType(t *testing.T) {
-	types := testTypes()
+	testCases := testTypes()
+	reflectTypeType := reflect.TypeOf(new(reflect.Type)).Elem()
 
-	e := encodable.NewType(0)
+	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
 
-	for i := range types {
-		buff := new(bytes.Buffer)
-		err := e.Encode(unsafe.Pointer(&types[i]), buff)
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, config := range configPermutations {
+		for _, tC := range testCases {
 
-		var decoded reflect.Type
-		err = e.Decode(unsafe.Pointer(&decoded), buff)
-		if err != nil {
-			t.Errorf("error decoding: %v", err)
-		}
-		if decoded != types[i] {
-			t.Errorf("wrong type decoded, want %v but got %v", types[i], decoded)
+			desc := "<nil>"
+			if tC != nil {
+				desc = tC.String()
+			}
+
+			t.Run(getDescription(desc, config), func(t *testing.T) {
+				enc := src.NewEncodable(reflectTypeType, config, nil)
+				testEqual(&tC, &tC, *enc, t)
+			})
 		}
 	}
 }
@@ -124,30 +130,17 @@ func BenchmarkType_Encode(b *testing.B) {
 }
 
 func TestValue(t *testing.T) {
-	values := testValues()
+	testCases := testValues()
+
+	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
 
 	for _, config := range configPermutations {
-		t.Run(getDescription("value test", config), func(t *testing.T) {
-			src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-			enc := src.NewEncodable(reflect.TypeOf(reflect.Value{}), config, nil)
-
-			for i := range values {
-				buff := new(bytes.Buffer)
-				err := (*enc).Encode(unsafe.Pointer(&values[i]), buff)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				var decoded reflect.Value
-				err = (*enc).Decode(unsafe.Pointer(&decoded), buff)
-				if err != nil {
-					t.Errorf("error decoding: %v", err)
-				}
-				if reflect.DeepEqual(reflect.TypeOf(values[i]), decoded) {
-					t.Errorf("wrong type decoded, want %v but got %v", values[i], decoded)
-				}
-			}
-		})
+		for _, tC := range testCases {
+			t.Run(getDescription(tC.String(), config), func(t *testing.T) {
+				enc := src.NewEncodable(reflect.TypeOf(reflect.Value{}), config, nil)
+				testEqual(&tC, &tC, *enc, t)
+			})
+		}
 	}
 }
 

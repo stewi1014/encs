@@ -23,6 +23,33 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func getDeepEqualTester(t *testing.T) *td.T {
+	tdt := td.NewT(t)
+
+	seen := make(map[reflect.Value]bool)
+
+	tdt.AddCmpHook(func(got, expected reflect.Value) bool {
+		if seen[got] && seen[expected] {
+			return true
+		}
+
+		if !got.IsValid() || !expected.IsValid() {
+			return got.IsValid() == expected.IsValid()
+		}
+
+		if !got.CanInterface() || !expected.CanInterface() {
+			return got.CanInterface() == expected.CanInterface()
+		}
+
+		seen[got] = true
+		seen[expected] = true
+
+		return tdt.Cmp(got.Interface(), expected.Interface())
+	})
+
+	return tdt
+}
+
 // permutateConfig returns all permutations of configuration with the given options.
 func permutateConfig(buff *[]encodable.Config, c encodable.Config, options []encodable.Config) []encodable.Config {
 	if buff == nil {
@@ -50,6 +77,7 @@ func getDescription(desc string, config encodable.Config) string {
 }
 
 func runTest(encVal, decVal reflect.Value, enc, dec encodable.Encodable, t *testing.T) (encodeErr, decodeErr error) {
+
 	if encVal.Type() != enc.Type() {
 		t.Errorf("encoder returns type %v, but type to encode is %v", enc.Type().String(), encVal.Type().String())
 	}
@@ -122,7 +150,9 @@ func testNoErr(v interface{}, enc encodable.Encodable, t *testing.T) interface{}
 }
 
 func testEqual(v, want interface{}, e encodable.Encodable, t *testing.T) {
-	td.Cmp(t, testNoErr(v, e, t), want)
+	tdt := getDeepEqualTester(t)
+
+	td.CmpTrue(t, tdt.Cmp(testNoErr(v, e, t), want))
 }
 
 type buffer struct {

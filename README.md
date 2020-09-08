@@ -9,7 +9,7 @@ Encs provides methods for serialisation of golang types.
 A large part of the motivation of this library is that many encoding libraries seem to either lack features, be slow, hard to use, or have little opportunity for user expandability. If you don't need to serialise across languages, why not have all four?
 
 # Goals
- * ## Keep-It-Simple-Stupid
+ * ## Simple to Use
 	The default Encoder and Decoder provide out of the box functionality, and aims to directly compete with [golang/gob](https://golang.org/pkg/encoding/gob/). It is used in the same way, and by default operates in the same way with the exception of some extra features such as support for recursive values and types, and encoding of types unsupported in gob, e.g. channels.
 
  * ## Nothing is Out of Scope
@@ -22,13 +22,15 @@ A large part of the motivation of this library is that many encoding libraries s
 	Streams have no state; each encoded value is completely independent, and decodable without any extra information. Encs streams can be picked up by a Decoder mid-stream and decoded successfully, allowing a single Encoder to write to a dynamic number of receiving Decoders, and a dynamic number of sending Encoders to be decoded by a single Decoder.
 
  * ## Modular
-	Each golang type has an implementation of the encs/encodable.Encodable interface dedicated to encoding the type. If you want to extend encs, 3rd party Encodables for types can be written and integrated into it. Encodables do not need to worry about pointer cycles, type safety, or infinite recursion. This is handled by encs/encodable.Source, which again, is self contained, and swappable with other implementations. Source handles the generation of Encodables for types that contain child types, e.g. a struct, which has a child type for each field. Extending the builtin implementation of Source instead of writing one from scratch is reccomended, but you can go mad with it if you want; all Encodables are exported so use them how you want.
+	Each golang type has an implementation of the encs/encodable.Encodable interface dedicated to encoding the type. If you want to extend encs, 3rd party Encodables for types can be written and integrated into it. Encodables do not need to worry about pointer cycles, encoding element types, type safety, or infinite recursion. This is handled by encs/encodable.Source, which again, is self contained, and swappable with other implementations.
 
  * ## Open
 	Methods for encoding are exposed in sub-packages, allowing the lower-level encoding methods to be used. If you have a look at the default encs Encoder/Decoder, you'll find it's just gluing together a few modules for typical use cases. If you just have a single struct type you want to send, you can skip the shenanigans and just use encs/encodable.NewStruct().
 
- * ## Pure Go
-	Encs is written entirely in Golang, and imports only the standard library with the exception of tests. Given the somewhat extreme nature of some recursive test cases, testing has been somewhat difficult with even reflect.DeepEqual in go 1.14 recursing infinitely in some cases. [maxatome](https://github.com/maxatome) has been helpful with [go-testdeep](https://github.com/maxatome/go-testdeep) in supporting these cases.
+ * ## Tested
+	Encs is tested against test cases designed to make it fail, with both unit tests on 
+ 	Due to the contrived test values made with the express purpose of inducing infinite recursion and other exceptions, it was difficult to generalise testing, with even the standard library reflect.DeepEqual in go 1.14 recursing infinitely. Big thanks to [maxatome](https://github.com/maxatome) who has been incerdibly helpful with [go-testdeep](https://github.com/maxatome/go-testdeep) in supporting these test cases.
+
 
 # Packages
 
@@ -38,6 +40,9 @@ It provides encoders for golang types, and methods for resolving recursive types
 
 ## encs/encio
 Provides io methods and error types for encoding and related tasks, including multiplexing and functions for encoding integers.
+
+# General Structure
+
 
 ## Usage
 ```go

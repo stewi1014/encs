@@ -70,7 +70,7 @@ type IOError struct {
 	// Message contains extra information about the error.
 	Message string
 
-	// Location is the name of the function where the error occoured.
+	// Location is filled in NewIOError using the depth argument, and is the full path and name of the errored function.
 	Location string
 }
 
@@ -120,8 +120,13 @@ func NewError(err error, message string, depth int) error {
 //  errors.Is(err, encio.ErrMalformed)
 // can be used to check if an unregistered type was received.
 type Error struct {
-	Err      error
-	Message  string
+	// Err is the underlying error.
+	Err error
+
+	// Message contains additional information helpful in debugging.
+	Message string
+
+	// Location is filled in NewError using the depth argument, and is the full package path and name of the errored function.
 	Location string
 }
 

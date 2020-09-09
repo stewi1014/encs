@@ -9,87 +9,101 @@ import (
 // A call to close results in subsequent calls to Write returning io.ErrClosedPipe,
 // while read will continue reading the buffer before returning io.ErrClosedPipe when it is empty.
 // It uses mutexes.
-func Pipe() io.ReadWriteCloser {
-	return &pipe{
-		cond: sync.NewCond(&sync.Mutex{}),
-		buff: make([]byte, 0, 256),
-	}
+func Pipe() (*PipeReader, *PipeWriter) {
+
+	cond := sync.NewCond(new(sync.Mutex))
+	buff := new(ReadBuffer)
+	err := new(error)
+
+	return &PipeReader{
+			cond: cond,
+			buff: buff,
+			err:  err,
+		}, &PipeWriter{
+			cond: cond,
+			buff: buff,
+			err:  err,
+		}
 }
 
-type pipe struct {
-	cond   *sync.Cond
-	buff   []byte
-	off    int
-	closed bool
+// PipeReader implements the reading half of a pipe.
+type PipeReader struct {
+	cond *sync.Cond
+	buff *ReadBuffer
+	err  *error
 }
 
-func (p *pipe) Read(buff []byte) (int, error) {
+func (p *PipeReader) Read(buff []byte) (n int, err error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
 
-	if len(p.buff)-p.off != 0 {
-		n := copy(buff, p.buff[p.off:])
-		p.off += n
-		return n, nil
+	n, err = p.readBuff(buff)
+	if n > 0 || err != nil {
+		return
 	}
 
-	if p.closed {
-		return 0, io.ErrClosedPipe
-	}
-
-	for len(p.buff)-p.off <= 0 && !p.closed {
+	for p.buff.Len() <= 0 && *p.err == nil {
 		p.cond.Wait()
 	}
 
-	n := copy(buff, p.buff[p.off:])
-	p.off += n
-
-	if p.closed && n < len(buff) {
-		return n, io.ErrClosedPipe
-	}
-
-	return n, nil
+	n, err = p.readBuff(buff)
+	return
 }
 
-func (p *pipe) Write(buff []byte) (int, error) {
+func (p *PipeReader) Close() error {
+	p.cond.L.Lock()
+	defer p.cond.L.Unlock()
+	if *p.err != nil {
+		return *p.err
+	}
+
+	p.cond.Broadcast()
+	*p.err = io.ErrClosedPipe
+	return nil
+}
+
+func (p *PipeReader) readBuff(buff []byte) (int, error) {
+	if p.buff.Len() > 0 {
+		n, _ := p.buff.Read(buff)
+		if n < len(buff) {
+			return n, *p.err
+		}
+
+		return n, nil
+	}
+
+	return 0, *p.err
+}
+
+// PipeWriter implements the writing half of a pipe.
+type PipeWriter struct {
+	cond *sync.Cond
+	buff *ReadBuffer
+	err  *error
+}
+
+func (p *PipeWriter) Write(buff []byte) (n int, err error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
 	defer p.cond.Broadcast()
 
-	if p.closed {
-		return 0, io.ErrClosedPipe
+	if *p.err != nil {
+		err = *p.err
+		return
 	}
 
-	l := len(p.buff)
-	wl := len(buff)
-	if cap(p.buff) >= l+wl {
-		// Have enough space
-		p.buff = p.buff[:l+wl]
-		wl = copy(p.buff[l:], buff)
-		return wl, nil
-	}
-
-	if cap(p.buff) >= ((l+wl)-p.off)*8 {
-		// Slide, but only if we can reclaim a reasonably large amount of data.
-		copy(p.buff, p.buff[p.off:])
-		wl = copy(p.buff[l-p.off:], buff)
-		p.buff = p.buff[:l+wl-p.off]
-		p.off = 0
-		return wl, nil
-	}
-
-	// Allocate
-	nb := make([]byte, (l-p.off)+wl, cap(p.buff)+wl)
-	copy(nb, p.buff[p.off:])
-	wl = copy(nb[l-p.off:], buff)
-	p.buff = nb
-	p.off = 0
-	return wl, nil
+	n, err = p.buff.Write(buff)
+	return
 }
 
-func (p *pipe) Close() error {
+func (p *PipeWriter) Close() error {
+	p.CloseWith(io.ErrClosedPipe)
+	return nil
+}
+
+func (p *PipeWriter) CloseWith(err error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
-	p.closed = true
-	return nil
+	p.cond.Broadcast()
+	*p.err = err
 }

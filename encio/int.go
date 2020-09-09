@@ -1,9 +1,30 @@
 package encio
 
 import (
+	"crypto/rand"
 	"io"
 	"math/bits"
 )
+
+// NewUUID returns a randomly generated UUIDv4.
+func NewUUID() UUID {
+	var uuid UUID
+	n, err := rand.Read(uuid[:])
+	if n != 16 {
+		if err != nil {
+			panic(err)
+		}
+		panic("Short UUID read")
+	}
+
+	uuid[6] = (uuid[6] & 0x0f) | 0x40 // major version
+	uuid[8] = (uuid[8] & 0x3f) | 0x80 // minor version
+
+	return uuid
+}
+
+// UUID is a Universally Unique Identifier.
+type UUID [16]byte
 
 // NewUint32 returns a Uint32.
 func NewUint32() Uint32 {
@@ -131,10 +152,10 @@ const (
 // EncodeVarUint32 encodes the given uint32 in variable-length format to buff. It returns the encoded length.
 // It's primary use case is writing the length of a following message.
 //
-// EncodeVarUint32 is fast to encode, especially for small numbers, and only writes up to 4 bytes, but at the cost of the 2 most sigificant bits in n.
+// It is fast to encode, especially for small numbers, and only writes up to 4 bytes, but at the cost of the 2 most sigificant bits in n.
 // They are not encoded; n must not be larger than MaxVarint.
 //
-// Buff must be large enough to write the int, as a general rule, it should be 4 bytes large.
+// Buff must be large enough to write the int, it should be atleast 4 bytes long.
 func EncodeVarUint32(buff []byte, n uint32) int {
 	n <<= 2
 	n |= uint32(bits.Len32(n>>1) / 8)

@@ -464,6 +464,7 @@ func getVarintTestCases() (testCases []varintTestCase) {
 	floatTests := []float64{
 		-0.01,
 		234506989860243564903872533333333,
+		0, 1, float64(1<<64 - 1),
 	}
 	for _, f := range floatTests {
 		testCases = append(testCases, testVarintMetaExplodefloat64(f)...)

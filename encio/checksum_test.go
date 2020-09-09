@@ -12,6 +12,7 @@ import (
 	"hash/crc32"
 	"hash/crc64"
 	"hash/fnv"
+	"io"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -23,7 +24,7 @@ import (
 
 func TestChecksum(t *testing.T) {
 	count := 20
-	seed := int64(0)
+	seed := 0
 	maxBuffer := 500
 
 	hashers := []func() hash.Hash{
@@ -49,99 +50,8 @@ func TestChecksum(t *testing.T) {
 	}
 }
 
-func testChecksum(count int, seed int64, maxBuffer int, hasher func() hash.Hash, t *testing.T) {
-	t.Run("Returns error on flipped bit", func(t *testing.T) {
-		rng := rand.New(rand.NewSource(seed))
-
-		var send encio.Buffer
-		var receive encio.Buffer
-
-		for i := 0; i < count; i++ {
-			buff := new(bytes.Buffer)
-
-			cr := encio.NewChecksumReader(buff, hasher())
-			cw := encio.NewChecksumWriter(buff, hasher())
-
-			size := rng.Intn(maxBuffer-1) + 1
-
-			send = send[:0]
-			send.Grow(size)
-			receive = receive[:0]
-			receive.Grow(size)
-
-			if err := encio.Read(send, rng); err != nil {
-				t.Fatal(err)
-			}
-
-			if err := encio.Write(send, cw); err != nil {
-				t.Fatal(err)
-			}
-
-			var flippedIndex int
-			if size <= 1 {
-				flippedIndex = 0
-			} else {
-				flippedIndex = rand.Intn(size - 1)
-			}
-
-			buff.Bytes()[flippedIndex] = buff.Bytes()[flippedIndex] + 1
-
-			err := encio.Read(receive, cr)
-			if !errors.Is(err, encio.ErrMalformed) {
-				t.Fatalf("Wanted %v, but got %v. Bit flipped at %v", encio.ErrMalformed, err, flippedIndex)
-			}
-		}
-	})
-
-	t.Run("Returns error on out-of-order data", func(t *testing.T) {
-		rng := rand.New(rand.NewSource(seed))
-
-		var b encio.Buffer
-		var receive encio.Buffer
-
-		for i := 0; i < count; i++ {
-			buff := new(bytes.Buffer)
-
-			cr := encio.NewChecksumReader(buff, hasher())
-			cw := encio.NewChecksumWriter(buff, hasher())
-
-			size := rng.Intn(maxBuffer-1) + 1
-
-			b = b[:0]
-			b.Grow(size)
-			receive = receive[:0]
-			receive.Grow(size)
-
-			if err := encio.Read(b, rng); err != nil {
-				t.Fatal(err)
-			}
-
-			if err := encio.Write(b, cw); err != nil {
-				t.Fatal(err)
-			}
-
-			// Steal the first bit of data.
-			var first encio.Buffer
-			_, err := first.ReadFrom(buff)
-			if err != nil {
-				t.Fatalf("copying buffer for the test gave %v", err)
-			}
-
-			if err := encio.Write(b, cw); err != nil {
-				t.Fatal(err)
-			}
-
-			// Put the first packet back
-			buff.Write(first)
-
-			err = encio.Read(receive, cr)
-			if !errors.Is(err, encio.ErrMalformed) {
-				t.Fatalf("Wanted %v, but got %v", encio.ErrMalformed, err)
-			}
-		}
-	})
-
-	rng := rand.New(rand.NewSource(seed))
+func testChecksum(count, seed, maxBuffer int, hasher func() hash.Hash, t *testing.T) {
+	rng := rand.New(rand.NewSource(int64(seed)))
 
 	var b encio.Buffer
 	var receive encio.Buffer
@@ -173,4 +83,194 @@ func testChecksum(count int, seed int64, maxBuffer int, hasher func() hash.Hash,
 
 		td.Cmp(t, receive, b)
 	}
+
+	t.Run("Returns error on flipped bit", func(t *testing.T) {
+		testChecksumBadData(t, count, seed, maxBuffer, hasher)
+	})
+
+	t.Run("Returns error on out-of-order data", func(t *testing.T) {
+		testChecksumOutOfOrder(t, count, seed, maxBuffer, hasher)
+	})
+
+	t.Run("can continue after error", func(t *testing.T) {
+		testChecksumContinue(t, seed, hasher)
+	})
+}
+
+func testChecksumBadData(t *testing.T, count, seed, maxBuffer int, hasher func() hash.Hash) {
+	rng := rand.New(rand.NewSource(int64(seed)))
+
+	var send encio.Buffer
+	var receive encio.Buffer
+
+	for i := 0; i < count; i++ {
+		buff := new(bytes.Buffer)
+
+		cr := encio.NewChecksumReader(buff, hasher())
+		cw := encio.NewChecksumWriter(buff, hasher())
+
+		size := rng.Intn(maxBuffer-1) + 1
+
+		send = send[:0]
+		send.Grow(size)
+		receive = receive[:0]
+		receive.Grow(size)
+
+		if err := encio.Read(send, rng); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := encio.Write(send, cw); err != nil {
+			t.Fatal(err)
+		}
+
+		var flippedIndex int
+		if size <= 1 {
+			flippedIndex = 0
+		} else {
+			flippedIndex = rand.Intn(size - 1)
+		}
+
+		buff.Bytes()[flippedIndex] = buff.Bytes()[flippedIndex] + 1
+
+		err := encio.Read(receive, cr)
+		if !errors.Is(err, encio.ErrMalformed) {
+			t.Fatalf("Wanted %v, but got %v. Bit flipped at %v", encio.ErrMalformed, err, flippedIndex)
+		}
+	}
+}
+
+func testChecksumOutOfOrder(t *testing.T, count, seed, maxBuffer int, hasher func() hash.Hash) {
+	rng := rand.New(rand.NewSource(int64(seed)))
+
+	var wbuff encio.Buffer
+	cw := encio.NewChecksumWriter(&wbuff, hasher())
+
+	send := make([][]byte, count)
+	buffs := make([]encio.Buffer, count)
+
+	for i := range send {
+		send[i] = make([]byte, maxBuffer)
+		rng.Read(send[i])
+
+		n, err := cw.Write(send[i])
+		if err != nil {
+			t.Error(err)
+		}
+		if n != len(send[i]) {
+			t.Error(io.ErrShortWrite)
+		}
+
+		buffs[i].MWrite(wbuff)
+		wbuff.Reset()
+	}
+
+	b := new(encio.ReadBuffer)
+	b.MWrite(buffs[0])
+	b.MWrite(buffs[2])
+	b.MWrite(buffs[1])
+
+	rbuff := make(encio.Buffer, maxBuffer)
+	cr := encio.NewChecksumReader(b, hasher())
+
+	n, err := cr.Read(rbuff)
+	if err != nil {
+		t.Error(err)
+	}
+	if n != len(rbuff) {
+		t.Error(io.ErrUnexpectedEOF)
+	}
+
+	td.Cmp(t, []byte(rbuff), send[0])
+
+	n, err = cr.Read(rbuff)
+	if err == nil {
+		t.Error("no error on out of order data", n)
+	}
+
+	n, err = cr.Read(rbuff)
+	if err != nil {
+		t.Error(err)
+	}
+	if n != len(rbuff) {
+		t.Error(io.ErrUnexpectedEOF)
+	}
+
+	td.Cmp(t, []byte(rbuff), send[1])
+}
+
+func testChecksumContinue(t *testing.T, seed int, hasher func() hash.Hash) {
+	rng := rand.New(rand.NewSource(int64(seed)))
+
+	size := 50
+
+	send := make([][]byte, 3)
+	for i := range send {
+		send[i] = make([]byte, size)
+		rng.Read(send[i])
+	}
+
+	b := new(bytes.Buffer)
+
+	var wbuff encio.Buffer
+	cw := encio.NewChecksumWriter(&wbuff, hasher())
+
+	n, err := cw.Write(send[0])
+	if err != nil {
+		t.Error(err)
+	}
+	if n != len(send[0]) {
+		t.Error(io.ErrShortWrite)
+	}
+	b.Write(wbuff)
+	wbuff.Reset()
+
+	n, err = cw.Write(send[1])
+	if err != nil {
+		t.Error(err)
+	}
+	if n != len(send[1]) {
+		t.Error(io.ErrShortWrite)
+	}
+	wbuff[0]++
+	b.Write(wbuff)
+	wbuff.Reset()
+
+	n, err = cw.Write(send[2])
+	if err != nil {
+		t.Error(err)
+	}
+	if n != len(send[2]) {
+		t.Error(io.ErrShortWrite)
+	}
+	b.Write(wbuff)
+	wbuff.Reset()
+
+	rbuff := make(encio.Buffer, size)
+	cr := encio.NewChecksumReader(b, hasher())
+
+	n, err = cr.Read(rbuff)
+	if err != nil {
+		t.Error(err)
+	}
+	if n != len(rbuff) {
+		t.Error(io.ErrUnexpectedEOF)
+	}
+
+	td.Cmp(t, []byte(rbuff), send[0])
+
+	n, err = cr.Read(rbuff)
+	if err == nil {
+		t.Error("no error on damaged data", n)
+	}
+
+	n, err = cr.Read(rbuff)
+	if err != nil {
+		t.Error(err)
+	}
+	if n != len(rbuff) {
+		t.Error(io.ErrUnexpectedEOF)
+	}
+
+	td.Cmp(t, []byte(rbuff), send[2])
 }

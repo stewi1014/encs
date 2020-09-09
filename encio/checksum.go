@@ -30,11 +30,10 @@ type ChecksumWriter struct {
 	count  uint16
 }
 
-// BlockSize returns the hash's underlying block size.
-// The Write method can accept any amount
-// of data, but it may operate more efficiently if all writes
-// are a multiple of the block size depending on the hasher.
-func (c *ChecksumWriter) BlockSize() int { return c.hasher.BlockSize() }
+// Count returns the count of the next packet to be sent.
+func (c *ChecksumWriter) Count() uint16 {
+	return c.count
+}
 
 // Write implements io.Writer.
 // It adds a checksum and incrementing integer to written data,
@@ -52,6 +51,7 @@ func (c *ChecksumWriter) Write(buff []byte) (int, error) {
 
 	c.header[hs+4] = byte(c.count)
 	c.header[hs+5] = byte(c.count >> 8)
+	c.count++
 
 	err := c.writeChecksum(c.header[hs:], buff)
 	if err != nil {
@@ -81,8 +81,6 @@ func (c *ChecksumWriter) writeChecksum(buffs ...[]byte) error {
 
 	copy(c.header, c.hasher.Sum(c.header[:0]))
 
-	c.count++
-
 	return nil
 }
 
@@ -100,17 +98,23 @@ func NewChecksumReader(r io.Reader, hasher hash.Hash) *ChecksumReader {
 
 // ChecksumReader provides methods for detecting errors in data transmission.
 type ChecksumReader struct {
-	r      io.Reader
-	hasher hash.Hash
-	buff   Buffer
-	off    int
-	count  int
+	r        io.Reader
+	hasher   hash.Hash
+	buff     Buffer
+	off      int
+	count    uint16
+	hasCount bool
 }
 
 func (c *ChecksumReader) reset() {
 	c.buff = c.buff[:0]
-	c.count = 0
+	c.hasCount = false
 	c.off = 0
+}
+
+// Count returns the next expected packet number.
+func (c *ChecksumReader) Count() uint16 {
+	return c.count
 }
 
 // Read implements io.Reader.
@@ -118,7 +122,7 @@ func (c *ChecksumReader) reset() {
 // it will return a wrapped ErrMalformed.
 //
 // If the reader returns io.ErrUnexpectedEOF or io.EOF, it replaces the error with ErrMalformed if the header's reported size doesn't match the number of received bytes.
-// A call after the last call returned an error will ignore the next received packet number, and continue checking order on subsequent calls.
+// A call after the previous call returned an error will ignore the next received packet number, and continue checking order on subsequent calls.
 func (c *ChecksumReader) Read(buff []byte) (int, error) {
 	if len(c.buff)-c.off > 0 {
 		n := copy(buff, c.buff[c.off:])
@@ -136,16 +140,19 @@ func (c *ChecksumReader) Read(buff []byte) (int, error) {
 func (c *ChecksumReader) read(buff []byte) (int, error) {
 	hs := c.hasher.Size()
 
-	l, err := c.readHeader()
-	if err != nil {
-		return 0, err
+	l, herr := c.readHeader()
+	berr := c.readBody(l)
+	if herr != nil {
+		c.reset()
+		return 0, herr
 	}
-
-	if err := c.readBody(l); err != nil {
-		return 0, err
+	if berr != nil {
+		c.reset()
+		return 0, berr
 	}
 
 	if err := c.check(); err != nil {
+		c.reset()
 		return 0, err
 	}
 
@@ -189,13 +196,11 @@ func (c *ChecksumReader) readHeader() (int, error) {
 	c.buff.Grow(hs + 6)
 
 	if err := Read(c.buff, c.r); err != nil {
-		c.reset()
 		return 0, err
 	}
 
 	l := int(DecodeUint32(c.buff[hs:]))
 	if l > int(TooBig) {
-		c.reset()
 		return 0, NewIOError(
 			ErrMalformed,
 			c.r,
@@ -210,22 +215,20 @@ func (c *ChecksumReader) readHeader() (int, error) {
 	count := uint16(c.buff[hs+4])
 	count |= uint16(c.buff[hs+5]) << 8
 
-	if int(count) != c.count && c.count >= 0 {
-		last := c.count
-		received := count
-		c.reset()
-		return 0, NewIOError(
+	if count != c.count && c.hasCount {
+		return l, NewIOError(
 			ErrMalformed,
 			c.r,
 			fmt.Sprintf(
 				"data out of order. Last packet was number %v, but just received %v",
-				last,
-				received,
+				c.count,
+				count,
 			),
 			0,
 		)
 	}
-	c.count = int(count + 1)
+	c.count = count + 1
+	c.hasCount = true
 
 	return l, nil
 }
@@ -241,7 +244,7 @@ func (c *ChecksumReader) readBody(n int) error {
 			return NewIOError(
 				ErrMalformed,
 				c.r,
-				fmt.Sprintf("header says the payload is %v bytes big, but got \"%v\" before reading it all.", n, err),
+				fmt.Sprintf("header says the payload is %v bytes big, but got \"%v\" before reading it all", n, err),
 				0,
 			)
 		}

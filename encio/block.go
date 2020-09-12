@@ -11,7 +11,7 @@ const (
 	// It should be reasonably uncommon.
 	escapeByte byte = 23
 
-	// this must be an invalid length
+	// this must be an invalid length.
 	escapeEscape = 0
 )
 

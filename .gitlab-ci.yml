@@ -10,7 +10,7 @@ variables:
 lint:
   stage: lint
   before_script:
-    - "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0"
+    - "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.31.0"
   script: 
     - "golangci-lint run"
 

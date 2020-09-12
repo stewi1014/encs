@@ -197,7 +197,7 @@ func (c *ChecksumReader) readHeader() (int, error) {
 	if l > int(TooBig) {
 		c.reset()
 		return 0, NewIOError(
-			ErrTooBig,
+			ErrMalformed,
 			c.r,
 			fmt.Sprintf(
 				"received block size of %v is too big!",

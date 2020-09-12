@@ -48,7 +48,7 @@ func (b *Buffer) ReadFrom(r io.Reader) (read int64, err error) {
 		take *= 2
 		if uintptr(take) > TooBig {
 			return read, NewIOError(
-				ErrTooBig,
+				ErrMalformed,
 				r,
 				fmt.Sprintf(
 					"refusing to buffer %v bytes as it's too big",

@@ -32,9 +32,6 @@ var (
 
 	// ErrNilPointer is returned if a pointer that should not be nil is nil.
 	ErrNilPointer = errors.New("nil pointer")
-
-	// ErrTooBig is returned when a check agaist TooBig fails.
-	ErrTooBig = errors.New("too big")
 )
 
 // NewIOError returns an IOError wrapping err with the given message.

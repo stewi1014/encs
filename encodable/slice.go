@@ -83,7 +83,7 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	if uintptr(l)*((*e.elem).Type().Size()) > uintptr(encio.TooBig) {
 		return encio.NewIOError(
-			encio.ErrTooBig,
+			encio.ErrMalformed,
 			r,
 			fmt.Sprintf("slice of length %v (%v bytes) is too big", l, int(l)*int((*e.elem).Type().Size())),
 			0,

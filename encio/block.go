@@ -133,7 +133,7 @@ func (e *BlockReader) ReadBytes() (*Buffer, error) {
 		return nil, err
 	}
 	if n >= uint32(TooBig) {
-		return nil, NewIOError(ErrTooBig, e.r, fmt.Sprintf("payload of size %v", n), 0)
+		return nil, NewIOError(ErrMalformed, e.r, fmt.Sprintf("payload of size %v", n), 0)
 	}
 
 	e.off = 0

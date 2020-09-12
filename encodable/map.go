@@ -91,7 +91,7 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	if uintptr(l)*((*e.key).Type().Size()+(*e.val).Type().Size()) > encio.TooBig {
-		return encio.NewIOError(encio.ErrTooBig, r, fmt.Sprintf("map size of %v is too big", l), 0)
+		return encio.NewIOError(encio.ErrMalformed, r, fmt.Sprintf("map size of %v is too big", l), 0)
 	}
 
 	v := reflect.MakeMapWithSize(e.t, int(l))

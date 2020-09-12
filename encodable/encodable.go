@@ -32,10 +32,6 @@ const (
 	// and complex types (complex64, complex128) are treated as equal.
 	// For implementation details see StructLoose, Varint, and VarComplex encodables, and for exact details on how type resolving is changed, see Type.
 	LooseTyping Config = 1 >> iota
-
-	// LogTypes will make Type Encodables log types and their generated ids when encoding.
-	// It is helpful for debugging a type that cannot be resolved on Decode.
-	LogTypes
 )
 
 const (
@@ -174,7 +170,7 @@ func (s DefaultSource) NewEncodable(ty reflect.Type, config Config, src Source) 
 }
 
 // NewNumber generates an encodable for the given number type.
-// It supports the LooseTyping gflag, and if set, returns Varint
+// It supports the LooseTyping flag, and if set, returns Varint
 // an encodable that can encode from/decode to any int* uint* and float* type.
 // Otherwise, it returns the appropriate type specific Encodable.
 func NewNumber(ty reflect.Type, config Config) Encodable {

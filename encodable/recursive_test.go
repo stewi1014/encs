@@ -34,6 +34,19 @@ type RecursiveTest5 struct {
 }
 
 func TestRecursive(t *testing.T) {
+	err := encodable.Register(
+		reflect.TypeOf(RecursiveTest1{}),
+		reflect.TypeOf(RecursiveTest2{}),
+		reflect.TypeOf(RecursiveTest3{}),
+		reflect.TypeOf(RecursiveTest4{}),
+		reflect.TypeOf(RecursiveTest5{}),
+		reflect.TypeOf(make(map[int]reflect.Value)),
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
 	testCases := []struct {
 		desc   string
 		encode interface{}

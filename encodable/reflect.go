@@ -1,94 +1,22 @@
 package encodable
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
-	"time"
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
 )
 
-var (
-	reflectTypeType  = reflect.TypeOf(new(reflect.Type)).Elem()
-	reflectValueType = reflect.TypeOf(new(reflect.Value)).Elem()
-)
-
-func init() {
-	err := Register(
-		nil,
-		reflect.TypeOf(int(0)),
-		reflect.TypeOf(int8(0)),
-		reflect.TypeOf(int16(0)),
-		reflect.TypeOf(int32(0)),
-		reflect.TypeOf(int64(0)),
-		reflect.TypeOf(uint(0)),
-		reflect.TypeOf(uint8(0)),
-		reflect.TypeOf(uint16(0)),
-		reflect.TypeOf(uint32(0)),
-		reflect.TypeOf(uint64(0)),
-		reflect.TypeOf(uintptr(0)),
-		reflect.TypeOf(float32(0)),
-		reflect.TypeOf(float64(0)),
-		reflect.TypeOf(complex64(0)),
-		reflect.TypeOf(complex128(0)),
-		reflect.TypeOf(string("")),
-		reflect.TypeOf(false),
-		reflect.TypeOf(time.Time{}),
-		reflect.TypeOf(time.Duration(0)),
-		reflectTypeType,
-		reflectValueType,
-	)
-
-	if err != nil {
-		panic(err)
-	}
-}
-
-var registered []reflect.Type
-
-// ErrAlreadyRegistered is returned by Register if one or more of the given types has already been registered.
-// It is wrapped.
-var ErrAlreadyRegistered = errors.New("already registered")
-
-// Register allows an unknown type to be decoded with Type.
-func Register(types ...reflect.Type) error {
-	var errMsg string
-	for _, ty := range types {
-		if register(ty) {
-			if len(errMsg) > 0 {
-				errMsg += ", "
-			}
-			errMsg += fmt.Sprintf("%v", ty)
-			continue
-		}
-	}
-
-	if errMsg != "" {
-		return fmt.Errorf("%w: %v", ErrAlreadyRegistered, errMsg)
-	}
-	return nil
-}
-
-// register registers the type, returning true if it was previously registered.
-func register(ty reflect.Type) bool {
-	for _, r := range registered {
-		if r == ty {
-			return true
-		}
-	}
-	registered = append(registered, ty)
-	return false
-}
-
 // NewType returns a new reflect.Type encodable.
 func NewType(config Config) *Type {
 	e := &Type{
-		typeByID: make(map[ID]reflect.Type),
-		idByType: make(map[reflect.Type]ID),
-		config:   config,
+		unregistered: make(map[ID]reflect.Type),
+		typeByID:     make(map[ID]reflect.Type),
+		idByType:     make(map[reflect.Type]ID),
+		config:       config,
+		buff:         make([]byte, 16),
 	}
 
 	for _, t := range registered {
@@ -103,9 +31,16 @@ func NewType(config Config) *Type {
 
 // Type is an encodable for reflect.Type values.
 type Type struct {
-	typeByID map[ID]reflect.Type
+	// unregistered contains types that should be known for speeds sake, but that have not been registered.
+	// If an element in unregistered is used and neccecary for decoding, a warning should be shown, as the fact the type is
+	// in unregistered is completely coincidental, and slight changes in usage or
+	unregistered map[ID]reflect.Type
+	typeByID     map[ID]reflect.Type
+
+	// idByType contains both registered and unregistered types.
 	idByType map[reflect.Type]ID
 	config   Config
+	buff     []byte
 }
 
 // Size implements Encodable.
@@ -122,25 +57,22 @@ func (e *Type) Encode(ptr unsafe.Pointer, w io.Writer) error {
 		// This type hasn't been registered. Register it now.
 		id = GetID(ty, e.config)
 
-		e.typeByID[id] = ty
 		e.idByType[ty] = id
 	}
 
-	if e.config&LogTypes != 0 {
-		fmt.Fprintf(encio.Warnings, "type %v send with id %v (previously seen: %v)\n", ty.String(), id, ok)
-	}
-
-	return encio.Write(id[:], w)
+	id.Encode(e.buff)
+	return encio.Write(e.buff, w)
 }
 
 // Decode implements Encodable.
-// Apart from checking registered types, it also cheks if the type currently in ptr is a match,
+// Apart from checking registered types, it also checks if the type currently in ptr is a match,
 // and if so, does nothing.
 func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	var id ID
-	if err := encio.Read(id[:], r); err != nil {
+	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
+	id.Decode(e.buff)
 
 	ty, ok := e.typeByID[id]
 	if ok {
@@ -149,16 +81,51 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		return nil
 	}
 
+	ty, ok = e.unregistered[id]
+	if ok {
+		if ty == *(*reflect.Type)(ptr) {
+			// Type is unregistered, but we're decoding into the same type as was sent.
+			// Assume the caller know what it's doing. If it keeps only using us for validation instead of resolution
+			// then we're good.
+			return nil
+		}
+
+		// The received type is not registered, and the type in ptr is a different type.
+		// We can resolve the type because we've seen it before, but we're relying on a fickle thing.
+		// We must have been called with a ptr to this type previously.
+		// Not only does this break the state-independent requirement of encs, but we're dependant on
+		// the caller calling us in a certain order. I have half a mind to just throw an error instead here.
+
+		fmt.Fprintln(encio.Warnings, encio.NewError(
+			encio.ErrBadType,
+			fmt.Sprintf(
+				"%v is only known because it happened to be passed to Decode previously; it isn't registered. this is unreliable. register it!",
+				ty.String(),
+			),
+			0,
+		))
+
+		*(*reflect.Type)(ptr) = ty
+		return nil
+	}
+
 	if *(*reflect.Type)(ptr) != nil {
 		// No match, check if the existing type is a match.
 		ty = *(*reflect.Type)(ptr)
+
+		eid, ok := e.idByType[ty]
+		if ok && eid == id {
+			// fast path
+			// Type is not registered, but the existing type has the same id as received.
+			return nil
+		}
+
 		existing := GetID(ty, e.config)
 		if existing == id {
-			// A match, add it to our known types and return.
-
-			e.typeByID[id] = ty
+			// slow path
+			// Type is not registered, but the existing type has the same id as received.
+			e.unregistered[id] = ty
 			e.idByType[ty] = id
-
 			return nil
 		}
 
@@ -184,11 +151,11 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		}
 
 		if nameMatch != nil && nameMatch.Name() != "" {
-			return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %016X. %v loosely matches, but LooseTyping isn't enabled.", id, nameMatch), 0)
+			return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %v. %v loosely matches, but LooseTyping isn't enabled.", id, nameMatch), 0)
 		}
 	}
 
-	return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %016X. Is it registered?", id), 0)
+	return encio.NewError(encio.ErrBadType, fmt.Sprintf("unknown type ID %v. Is it registered?", id), 0)
 }
 
 // NewValue returns a new reflect.Value encodable.

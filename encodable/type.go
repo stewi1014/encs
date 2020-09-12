@@ -1,13 +1,87 @@
 package encodable
 
 import (
+	"errors"
 	"fmt"
 	"hash/crc64"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/stewi1014/encs/encio"
 )
+
+var (
+	reflectTypeType  = reflect.TypeOf(new(reflect.Type)).Elem()
+	reflectValueType = reflect.TypeOf(new(reflect.Value)).Elem()
+)
+
+func init() {
+	err := Register(
+		nil,
+		reflect.TypeOf(int(0)),
+		reflect.TypeOf(int8(0)),
+		reflect.TypeOf(int16(0)),
+		reflect.TypeOf(int32(0)),
+		reflect.TypeOf(int64(0)),
+		reflect.TypeOf(uint(0)),
+		reflect.TypeOf(uint8(0)),
+		reflect.TypeOf(uint16(0)),
+		reflect.TypeOf(uint32(0)),
+		reflect.TypeOf(uint64(0)),
+		reflect.TypeOf(uintptr(0)),
+		reflect.TypeOf(float32(0)),
+		reflect.TypeOf(float64(0)),
+		reflect.TypeOf(complex64(0)),
+		reflect.TypeOf(complex128(0)),
+		reflect.TypeOf(string("")),
+		reflect.TypeOf(bool(false)),
+		reflect.TypeOf(time.Time{}),
+		reflect.TypeOf(time.Duration(0)),
+		reflectTypeType,
+		reflectValueType,
+	)
+
+	if err != nil {
+		panic(err)
+	}
+}
+
+var registered []reflect.Type
+
+// ErrAlreadyRegistered is returned by Register if one or more of the given types has already been registered.
+// It is wrapped.
+var ErrAlreadyRegistered = errors.New("already registered")
+
+// Register allows an unknown type to be decoded with Type.
+func Register(types ...reflect.Type) error {
+	var errMsg string
+	for _, ty := range types {
+		if !register(ty) {
+			if len(errMsg) > 0 {
+				errMsg += ", "
+			}
+			errMsg += fmt.Sprintf("%v", ty)
+			continue
+		}
+	}
+
+	if errMsg != "" {
+		return fmt.Errorf("%w: %v", ErrAlreadyRegistered, errMsg)
+	}
+	return nil
+}
+
+// register registers the type, returning false if it was previously registered.
+func register(ty reflect.Type) bool {
+	for _, r := range registered {
+		if r == ty {
+			return false
+		}
+	}
+	registered = append(registered, ty)
+	return true
+}
 
 // GetID returns a unique ID for a given reflect.Type.
 func GetID(ty reflect.Type, config Config) (id ID) {
@@ -22,11 +96,7 @@ func GetID(ty reflect.Type, config Config) (id ID) {
 		panic(err)
 	}
 
-	n := copy(id[:8], hasher.Sum(nil))
-	if n != 8 {
-		// This isn't possible unless the standard library changes.
-		panic("Hasher didn't write 8 bytes to buffer")
-	}
+	id[0] = hasher.Sum64()
 
 	// Second half is the details about the types kind
 	hasher.Reset()
@@ -34,20 +104,58 @@ func GetID(ty reflect.Type, config Config) (id ID) {
 		panic(err)
 	}
 
-	n = copy(id[8:], hasher.Sum(nil))
-	if n != 8 {
-		// This isn't possible unless the standard library changes.
-		panic("Hasher didn't write 8 bytes to buffer")
-	}
+	id[1] = hasher.Sum64()
 
 	return id
 }
 
 // ID is a 128 bit ID for a given reflect.Type.
-type ID [16]byte
+type ID [2]uint64
 
 func (id ID) String() string {
-	return fmt.Sprintf("%x-%x", id[0], id[1])
+	return fmt.Sprintf("%#x%x", id[0], id[1])
+}
+
+// Encode writes the ID to the first 16 bytes in buff.
+// It panics if len(buff) < 16.
+func (id *ID) Encode(buff []byte) {
+	buff[0] = uint8(id[0])
+	buff[1] = uint8(id[0] >> 8)
+	buff[2] = uint8(id[0] >> 16)
+	buff[3] = uint8(id[0] >> 24)
+	buff[4] = uint8(id[0] >> 32)
+	buff[5] = uint8(id[0] >> 40)
+	buff[6] = uint8(id[0] >> 48)
+	buff[7] = uint8(id[0] >> 56)
+	buff[8] = uint8(id[1])
+	buff[9] = uint8(id[1] >> 8)
+	buff[10] = uint8(id[1] >> 16)
+	buff[11] = uint8(id[1] >> 24)
+	buff[12] = uint8(id[1] >> 32)
+	buff[13] = uint8(id[1] >> 40)
+	buff[14] = uint8(id[1] >> 48)
+	buff[15] = uint8(id[1] >> 56)
+}
+
+// Decode reads the ID from the first 16 bytes in buff.
+// It panics if len(buff) < 16.
+func (id *ID) Decode(buff []byte) {
+	id[0] = uint64(buff[0])
+	id[0] |= uint64(buff[1]) << 8
+	id[0] |= uint64(buff[2]) << 16
+	id[0] |= uint64(buff[3]) << 24
+	id[0] |= uint64(buff[4]) << 32
+	id[0] |= uint64(buff[5]) << 40
+	id[0] |= uint64(buff[6]) << 48
+	id[0] |= uint64(buff[7]) << 56
+	id[1] = uint64(buff[8])
+	id[1] |= uint64(buff[9]) << 8
+	id[1] |= uint64(buff[10]) << 16
+	id[1] |= uint64(buff[11]) << 24
+	id[1] |= uint64(buff[12]) << 32
+	id[1] |= uint64(buff[13]) << 40
+	id[1] |= uint64(buff[14]) << 48
+	id[1] |= uint64(buff[15]) << 56
 }
 
 // looseGlob returns a glob of data which should loosely identify types.

@@ -1,9 +1,30 @@
 package encio
 
 import (
+	"crypto/rand"
 	"io"
 	"math/bits"
 )
+
+// NewUUID returns a randomly generated UUIDv4.
+func NewUUID() UUID {
+	var uuid UUID
+	n, err := rand.Read(uuid[:])
+	if n != 16 {
+		if err != nil {
+			panic(err)
+		}
+		panic("Short UUID read")
+	}
+
+	uuid[6] = (uuid[6] & 0x0f) | 0x40 // major version
+	uuid[8] = (uuid[8] & 0x3f) | 0x80 // minor version
+
+	return uuid
+}
+
+// UUID is a Universally Unique Identifier.
+type UUID [16]byte
 
 // NewUint32 returns a Uint32.
 func NewUint32() Uint32 {

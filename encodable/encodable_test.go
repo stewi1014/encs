@@ -23,13 +23,20 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func getDeepEqualTester(t *testing.T) *td.T {
+func getDeepEqualTester(t *testing.T, state *struct {
+	rvSeen map[reflect.Value]bool
+}) *td.T {
 	tdt := td.NewT(t)
+	if state == nil {
+		state = &struct {
+			rvSeen map[reflect.Value]bool
+		}{
+			rvSeen: make(map[reflect.Value]bool),
+		}
+	}
 
-	seen := make(map[reflect.Value]bool)
-
-	tdt.AddCmpHook(func(got, expected reflect.Value) bool {
-		if seen[got] && seen[expected] {
+	return tdt.WithCmpHooks(func(got, expected reflect.Value) bool {
+		if state.rvSeen[got] && state.rvSeen[expected] {
 			return true
 		}
 
@@ -41,13 +48,11 @@ func getDeepEqualTester(t *testing.T) *td.T {
 			return got.CanInterface() == expected.CanInterface()
 		}
 
-		seen[got] = true
-		seen[expected] = true
+		state.rvSeen[got] = true
+		state.rvSeen[expected] = true
 
-		return tdt.Cmp(got.Interface(), expected.Interface())
+		return getDeepEqualTester(t, state).Cmp(got.Interface(), expected.Interface())
 	})
-
-	return tdt
 }
 
 // permutateConfig returns all permutations of configuration with the given options.
@@ -150,7 +155,7 @@ func testNoErr(v interface{}, enc encodable.Encodable, t *testing.T) interface{}
 }
 
 func testEqual(v, want interface{}, e encodable.Encodable, t *testing.T) {
-	tdt := getDeepEqualTester(t)
+	tdt := getDeepEqualTester(t, nil)
 
 	td.CmpTrue(t, tdt.Cmp(testNoErr(v, e, t), want))
 }

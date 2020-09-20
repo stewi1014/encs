@@ -25,10 +25,9 @@ func TestMain(m *testing.M) {
 
 func getDeepEqualTester(t *testing.T) *td.T {
 	tdt := td.NewT(t)
-
 	seen := make(map[reflect.Value]bool)
 
-	tdt.AddCmpHook(func(got, expected reflect.Value) bool {
+	return tdt.WithCmpHooks(func(got, expected reflect.Value) bool {
 		if seen[got] && seen[expected] {
 			return true
 		}
@@ -46,8 +45,6 @@ func getDeepEqualTester(t *testing.T) *td.T {
 
 		return tdt.Cmp(got.Interface(), expected.Interface())
 	})
-
-	return tdt
 }
 
 // permutateConfig returns all permutations of configuration with the given options.

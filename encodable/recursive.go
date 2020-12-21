@@ -50,7 +50,7 @@ const (
 
 // NewEncodable implements Source.
 // It manages how recursive Encodables are generated, and substitutes with Recursive where needed.
-// The returned Encodable is usable upon return, but can be retroactively swapped. As such the returned Encodable must not be dereferenced.
+// The returned Encodable is usable upon return, but can be retroactively swapped if a recursive value is found. As such the returned Encodable must not be dereferenced.
 // It wraps Encodables as little as possible while still keeping the ability to handle recursive values and types,
 // and the correct re-creation of recursive values on decode.
 func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encodable {
@@ -70,6 +70,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encoda
 	}
 
 	if src.hasAny {
+		// Literally any type can exist inside this type. Every pointer must be checked.
 		return src.makeRecursive(id, source)
 	}
 
@@ -81,6 +82,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encoda
 
 		if gen.state == stateGenerating {
 			// Recursive type!
+			// Make this type and all types within it recursive.
 			src.setRecursed(gen.depth)
 			return src.makeRecursive(id, gen.source)
 		}
@@ -89,7 +91,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encoda
 		panic("invalid generation state")
 	}
 
-	// Need to make one
+	// No recursion (yet). Make an encodable.
 
 	// Let ourselves know what we're doing
 	src.seen[id] = &genState{
@@ -101,7 +103,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encoda
 
 	enc := src.source.NewEncodable(ty, source)
 
-	// Time to see what happened.
+	// Time to see if we just called ourselves in the last call.
 
 	gen, ok := src.seen[id]
 	if !ok {
@@ -110,22 +112,21 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encoda
 	}
 
 	if gen.state == stateRecursed {
-		// The Encodable recursed.
-		// Not needed, but it's nice to give Recursive the Encodable we did make.
+		// Recursion happened.
+		// Not needed, but it's nice to give Recursive the Encodable we just made.
 		// The first encode or decode should be 500ns faster for what it's worth.
 		(*gen.enc).(*Recursive).Push(enc)
 		return gen.enc
 	}
 
 	if gen.state == stateGenerating {
-		// No recurse
+		// No recursion.
 		*gen.enc = *enc
 		gen.state = stateGenerated
 		return gen.enc
 	}
 
-	// Only other option is stateGenerated.
-	// Well excuse me. I decide when this encodable has finished being made, because I'm making it.
+	// Well excuse me. I decide when this encodable has finished being made and noone else; because I'm the one making it.
 	panic("invalid generation state")
 }
 
@@ -181,8 +182,8 @@ func NewPointers() Pointers {
 	}
 }
 
-// Pointers provides methods for keeping track of pointers and their types, it is helpful for detecting and resolving pointer cycles.
-// It takes a reflect.Type in methods, sometimes uneccecaraly, but allows it to asset the correct type before return.
+// Pointers provides methods helpful for encoding Pointer cycles.
+// It takes a reflect.Type in methods, and uses them to check equality agaist recorded objects,
 // returning an error if types do not match. This is not so neccecary for Encoding, but is very important to validate when Decoding.
 //
 // Encoders can call Has() before encoding to check if the pointer has already been encoded,
@@ -285,15 +286,12 @@ func (p *Pointers) Reset() {
 	p.in = false
 }
 
-// RecursiveMaxCache is the maximum number of Encodables that Recursive will cache.
-const RecursiveMaxCache = 256
-
 // NewRecursive returns a new Recursive Encodable.
-// ptrs should be unique between element encodables e.g. a struct Encodable should share ptrs with Encodables for its fields.
-// This sharing should be handled by Source.
+// ptrs is used between Encodables to resolve pointer cycles and avoid infinite recursion. It should be shared across all Encodables for accurate reference cycle reproduction,
+// however it does not have to be. Two Interface fields in a struct could have different Pointers instances, and this would prevent any values inside either Interface from referencing values in the other.
 //
 // Typically, it is never desirable to manually create an instance of Recursive. It is best used inside implementations of Source
-// as a solution to recursive types and values.
+// as a solution to recursive types and values and avoided if not needed.
 func NewRecursive(ty reflect.Type, ptrs *Pointers, newFunc func() *Encodable) *Recursive {
 	r := &Recursive{
 		ptrs: ptrs,
@@ -320,20 +318,17 @@ const (
 )
 
 // Recursive is an encodable that resolves recursive values and types.
-// It aims to reproduce reference cycles with 100% accuracy; e.g. if two map values reference the same underlying map,
-// they are decoded to reference the same map.
-// Recursive is best used inside implementations of Source as a solution to recursive types and values.
+// It aims to reproduce reference cycles with 100% accuracy.
 //
-// It resolves Encodable creation for recursive types by deferring encodable creation until Encode/Decode.
+// It stops the nested calling of Encodables by generating and caching additional instances of the Encodable.
+// Nested-calling Recursive will result in a separate instance of the underlying Encodable being called.
 //
-// It resolves the nested calling of Encodables by keeping a buffer of instances of the underying Encodable. Calling an instance of Recursive twice will result in
-// two distinct instances of the underlying being called.
-//
-// Recursive values are resolved through a shared instance of Pointers between all Recursive Encodables for a type.
+// Recursive values are resolved through a shared instance of Pointers between all Recursive Encodables.
 // During Encode, Recursive will check if the pointer has already been encoded, taking care to check reference types such as maps.
 // If not, it then records the pointer, and encodes using the underlying Encodable returned from newFunc.
 //
-
+// If a pointer is found to be already encoded, it doesn't call the underlying at all, and instead instead writes the index of the previously encoded value.
+// This value is then read and used upon Decode to reference the previously decoded value and use it, recreating the same reference structure as was encoded.
 type Recursive struct {
 	new  func() *Encodable
 	ty   reflect.Type

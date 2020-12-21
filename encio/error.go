@@ -146,7 +146,7 @@ func (e Error) Unwrap() error {
 }
 
 // GetCaller returns the name of the calling function, skipping skip functions.
-// i.e. 0 writes the calling function, 1 the function calling that etc...
+// i.e. 0 returns the calling function, 1 the function calling that etc...
 func GetCaller(skip int) string {
 	pcs := make([]uintptr, 1)
 	n := runtime.Callers(2+skip, pcs)
@@ -159,7 +159,7 @@ func GetCaller(skip int) string {
 	return frame.Function
 }
 
-// GetFunctionName returns the declaration name of a function.
+// GetFunctionName returns the declaration name of a function from a reflect.Value.
 func GetFunctionName(v reflect.Value) string {
 	if v.Kind() != reflect.Func {
 		return fmt.Sprintf("%T is not a function", v)

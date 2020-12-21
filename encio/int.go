@@ -149,8 +149,10 @@ const (
 	sizeMask  = (1<<2 - 1)
 )
 
-// EncodeVarUint32 encodes the given uint32 in variable-length format to buff. It returns the encoded length.
-// It's primary use case is writing the length of a following message.
+// EncodeVarUint32 does not encode the 2 most significant bits!
+// It encodes the given uint32 in variable-length format to buff. It returns the encoded length.
+// It's most common use case is writing the length of a following message;
+// cases where the 2 most significant bits can be sacrified for speed and size of encoding.
 //
 // EncodeVarUint32 is fast to encode, especially for small numbers, and only writes up to 4 bytes, but at the cost of the 2 most sigificant bits in n.
 // They are not encoded; n must not be larger than MaxVarint.
@@ -183,9 +185,11 @@ func EncodeVarUint32(buff []byte, n uint32) int {
 	}
 }
 
-// DecodeVarUint32Header decodes the header sent by EncodeVarUint32,
+// DecodeVarUint32Header decodes the header created by EncodeVarUint32,
 // returning either how many bytes are needed to decode, or the encoded uint32.
-// If size is 0, n is the decoded number, if not, subsequent calls to DecodeVarUint32 must include the header again.
+// It is inlineable and the fast path for decoding.
+// If size is 0, n is the decoded number, if not, subsequent calls to DecodeVarUint32 must include the header again,
+// along with the extra bytes; size bytes in total.
 func DecodeVarUint32Header(b byte) (n uint32, size int) {
 	if b&sizeMask == 0 {
 		return uint32(b >> 2), 0

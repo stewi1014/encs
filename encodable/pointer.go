@@ -23,6 +23,9 @@ func NewPointer(ty reflect.Type, src Source) Encodable {
 }
 
 // Pointer encodes pointers to concrete types.
+// It does not follow different semantics to other Encodables,
+// and so must be given a non-nil pointer to the pointer it's encoding or decoding.
+// If the underlying pointer is nil this is handled as it should be.
 type Pointer struct {
 	ty   reflect.Type
 	elem *Encodable

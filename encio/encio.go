@@ -1,4 +1,4 @@
-// Package encio provides simple methods for encoding-relevant input and output, as well as error types.
+// Package encio provides io methods relevant to encoding, as well as error types.
 package encio
 
 import (

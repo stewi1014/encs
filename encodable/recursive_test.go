@@ -33,14 +33,40 @@ type RecursiveTest5 struct {
 	P *int
 }
 
+var recursiveTestSource = encodable.NewRecursiveSource(encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
+	if t == reflect.TypeOf(new(reflect.Value)).Elem() {
+		return encodable.NewValue(s)
+	}
+	if t == reflect.TypeOf(new(reflect.Type)).Elem() {
+		return encodable.NewType(true)
+	}
+	switch t.Kind() {
+	case reflect.Int:
+		return encodable.NewInt(t)
+	case reflect.Slice:
+		return encodable.NewSlice(t, s)
+	case reflect.String:
+		return encodable.NewString(t)
+	case reflect.Map:
+		return encodable.NewMap(t, s)
+	case reflect.Ptr:
+		return encodable.NewPointer(t, s)
+	case reflect.Struct:
+		return encodable.NewStructStrict(t, s)
+	}
+	return nil
+}))
+
 func TestRecursive(t *testing.T) {
 	err := encodable.Register(
-		reflect.TypeOf(RecursiveTest1{}),
-		reflect.TypeOf(RecursiveTest2{}),
-		reflect.TypeOf(RecursiveTest3{}),
+		reflect.TypeOf(&RecursiveTest1{}),
+		reflect.TypeOf(&RecursiveTest2{}),
+		reflect.TypeOf(&RecursiveTest3{}),
+		reflect.TypeOf(&RecursiveTest4{}),
 		reflect.TypeOf(RecursiveTest4{}),
-		reflect.TypeOf(RecursiveTest5{}),
+		reflect.TypeOf(&RecursiveTest5{}),
 		reflect.TypeOf(make(map[int]reflect.Value)),
+		reflect.TypeOf(new(reflect.Value)),
 	)
 
 	if err != nil {
@@ -140,13 +166,11 @@ func TestRecursive(t *testing.T) {
 			}(),
 		},
 	}
-	for _, config := range configPermutations {
-		for _, tC := range testCases {
-			src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-			enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				testEqual(tC.encode, tC.encode, *enc, t)
-			})
-		}
+	for _, tC := range testCases {
+		enc := encodable.NewInterface(reflect.TypeOf(&tC.encode).Elem(), recursiveTestSource)
+
+		t.Run(tC.desc, func(t *testing.T) {
+			testEqual(&tC.encode, &tC.encode, enc, t)
+		})
 	}
 }

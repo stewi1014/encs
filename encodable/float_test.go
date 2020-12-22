@@ -93,21 +93,17 @@ func TestVarComplex(t *testing.T) {
 		},
 	}
 
-	src := encodable.NewCachingSource(encodable.SourceFromFunc(func(ty reflect.Type, config encodable.Config, source encodable.Source) *encodable.Encodable {
-		enc := encodable.Encodable(encodable.NewVarComplex(ty))
-		return &enc
-	}))
-
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
+
 			decodeValue := reflect.New(reflect.TypeOf(tC.dec)).Elem()
 			encodedValue := reflect.New(reflect.TypeOf(tC.enc)).Elem()
 			encodedValue.Set(reflect.ValueOf(tC.enc))
 
-			enc := src.NewEncodable(encodedValue.Type(), 0, nil)
-			dec := src.NewEncodable(decodeValue.Type(), 0, nil)
+			enc := encodable.NewVarComplex(encodedValue.Type())
+			dec := encodable.NewVarComplex(decodeValue.Type())
 
-			runTestNoErr(encodedValue, decodeValue, *enc, *dec, t)
+			runTestNoErr(encodedValue, decodeValue, enc, dec, t)
 
 			td.Cmp(t, decodeValue.Interface(), tC.dec)
 		})

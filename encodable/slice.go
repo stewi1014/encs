@@ -10,14 +10,14 @@ import (
 )
 
 // NewSlice returns a new slice Encodable.
-func NewSlice(ty reflect.Type, config Config, src Source) *Slice {
+func NewSlice(ty reflect.Type, src Source) *Slice {
 	if ty.Kind() != reflect.Slice {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a slice", ty), 0))
 	}
 
 	return &Slice{
 		t:    ty,
-		elem: src.NewEncodable(ty.Elem(), config, nil),
+		elem: src.NewEncodable(ty.Elem(), nil),
 		len:  encio.NewInt32(),
 	}
 }

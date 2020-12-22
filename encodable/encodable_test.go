@@ -3,7 +3,6 @@ package encodable_test
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"reflect"
@@ -53,32 +52,6 @@ func getDeepEqualTester(t *testing.T, state *struct {
 
 		return getDeepEqualTester(t, state).Cmp(got.Interface(), expected.Interface())
 	})
-}
-
-// permutateConfig returns all permutations of configuration with the given options.
-func permutateConfig(buff *[]encodable.Config, c encodable.Config, options []encodable.Config) []encodable.Config {
-	if buff == nil {
-		buff = new([]encodable.Config)
-	}
-	if len(options) == 0 {
-		*buff = append(*buff, c)
-		return *buff
-	}
-
-	permutateConfig(buff, c&^options[0], options[1:])
-	permutateConfig(buff, c|options[0], options[1:])
-
-	return *buff
-}
-
-// configPermutations is the list of different configuration options to be tested with.
-var configPermutations = permutateConfig(nil, 0, []encodable.Config{
-	encodable.LooseTyping,
-})
-
-// getDescription adds the configuration to a test name.
-func getDescription(desc string, config encodable.Config) string {
-	return fmt.Sprintf("%v %8b", desc, config)
 }
 
 func runTest(encVal, decVal reflect.Value, enc, dec encodable.Encodable, t *testing.T) (encodeErr, decodeErr error) {

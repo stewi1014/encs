@@ -10,14 +10,14 @@ import (
 )
 
 // NewMap returns a new map Encodable.
-func NewMap(ty reflect.Type, config Config, src Source) *Map {
+func NewMap(ty reflect.Type, src Source) *Map {
 	if ty.Kind() != reflect.Map {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a map", ty), 0))
 	}
 
 	return &Map{
-		key: src.NewEncodable(ty.Key(), config, nil),
-		val: src.NewEncodable(ty.Elem(), config, nil),
+		key: src.NewEncodable(ty.Key(), nil),
+		val: src.NewEncodable(ty.Elem(), nil),
 		len: encio.NewInt32(),
 		t:   ty,
 	}

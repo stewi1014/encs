@@ -28,12 +28,19 @@ func TestInterface(t *testing.T) {
 		},
 	}
 	for _, tC := range testCases {
-		for _, config := range configPermutations {
-			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-				testEqual(tC.encode, tC.encode, *enc, t)
-			})
-		}
+		t.Run(tC.desc, func(t *testing.T) {
+			enc := encodable.NewInterface(reflect.TypeOf(tC.encode).Elem(), encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
+				switch {
+				case t.Kind() == reflect.Int:
+					return encodable.NewInt(t)
+				case t == reflect.TypeOf(new(reflect.Type)).Elem():
+					return encodable.NewType(true)
+				default:
+					return nil
+				}
+			}))
+
+			testEqual(tC.encode, tC.encode, enc, t)
+		})
 	}
 }

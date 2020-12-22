@@ -10,15 +10,15 @@ import (
 )
 
 // NewInterface returns a new interface Encodable.
-func NewInterface(ty reflect.Type, config Config, src Source) *Interface {
+func NewInterface(ty reflect.Type, src Source) *Interface {
 	if ty.Kind() != reflect.Interface {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an interface", ty), 0))
 	}
 
 	e := &Interface{
 		ty:      ty,
-		source:  NewCachingSource(src),
-		typeEnc: NewType(config),
+		source:  src,
+		typeEnc: src.NewEncodable(reflectTypeType, nil),
 		buff:    make([]byte, 1),
 	}
 
@@ -29,8 +29,7 @@ func NewInterface(ty reflect.Type, config Config, src Source) *Interface {
 type Interface struct {
 	ty      reflect.Type
 	source  Source
-	config  Config
-	typeEnc *Type
+	typeEnc *Encodable
 	buff    []byte
 }
 
@@ -64,12 +63,12 @@ func (e *Interface) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	elem := reflect.New(elemType).Elem()
 	elem.Set(i.Elem())
 
-	err = e.typeEnc.Encode(unsafe.Pointer(&elemType), w)
+	err = (*e.typeEnc).Encode(unsafe.Pointer(&elemType), w)
 	if err != nil {
 		return err
 	}
 
-	elemEnc := e.source.NewEncodable(elemType, e.config, nil)
+	elemEnc := e.source.NewEncodable(elemType, nil)
 	return (*elemEnc).Encode(unsafe.Pointer(elem.UnsafeAddr()), w)
 }
 
@@ -95,7 +94,7 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	var rty reflect.Type
-	err := e.typeEnc.Decode(unsafe.Pointer(&rty), r)
+	err := (*e.typeEnc).Decode(unsafe.Pointer(&rty), r)
 	if err != nil {
 		return err
 	}
@@ -113,7 +112,7 @@ func (e *Interface) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		// it will find the backing array pointer and avoid allocating a new one, assuming it's non-nil and cap is large enough.
 	}
 
-	enc := e.source.NewEncodable(rty, e.config, nil)
+	enc := e.source.NewEncodable(rty, nil)
 	if err := (*enc).Decode(unsafe.Pointer(elem.UnsafeAddr()), r); err != nil {
 		return err
 	}

@@ -20,7 +20,7 @@ import (
 func NewRecursiveSource(source Source) *RecursiveSource {
 	return &RecursiveSource{
 		source: source,
-		seen:   make(map[EncID]*genState),
+		seen:   make(map[reflect.Type]*genState),
 		ptrs:   NewPointers(),
 	}
 }
@@ -29,7 +29,7 @@ func NewRecursiveSource(source Source) *RecursiveSource {
 type RecursiveSource struct {
 	source Source
 	ptrs   Pointers
-	seen   map[EncID]*genState
+	seen   map[reflect.Type]*genState
 	hasAny bool
 	depth  int
 }
@@ -37,7 +37,7 @@ type RecursiveSource struct {
 // genState is the state of generation of an encodable.
 type genState struct {
 	enc    *Encodable // changes to this field must be done through de-referencing.
-	source Source
+	source Source     // Let's not assume Sources can't change during generation; make sure we use the same one.
 	depth  int
 	state  byte
 }
@@ -53,7 +53,7 @@ const (
 // The returned Encodable is usable upon return, but can be retroactively swapped. As such the returned Encodable must not be dereferenced.
 // It wraps Encodables as little as possible while still keeping the ability to handle recursive values and types,
 // and the correct re-creation of recursive values on decode.
-func (src *RecursiveSource) NewEncodable(ty reflect.Type, config Config, source Source) *Encodable {
+func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encodable {
 	if source == nil {
 		source = src
 	}
@@ -61,10 +61,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, config Config, source 
 	src.depth++
 	defer func() { src.depth-- }()
 
-	id := EncID{
-		Type:   ty,
-		Config: config,
-	}
+	id := ty
 
 	if ty.Kind() == reflect.Interface || ty == reflectValueType {
 		// These types can contain anything.
@@ -102,7 +99,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, config Config, source 
 		state:  stateGenerating,
 	}
 
-	enc := src.source.NewEncodable(ty, config, source)
+	enc := src.source.NewEncodable(ty, source)
 
 	// Time to see what happened.
 
@@ -147,14 +144,14 @@ func (src *RecursiveSource) setRecursed(depth int) {
 
 // makeRecursive either wraps an existing Encodable with Recursive, or creates a new Recursive Encodable.
 // It updates the map.
-func (src *RecursiveSource) makeRecursive(id EncID, source Source) *Encodable {
+func (src *RecursiveSource) makeRecursive(id reflect.Type, source Source) *Encodable {
 	if gen, ok := src.seen[id]; ok {
 		if gen.state == stateRecursed {
 			return gen.enc
 		}
 
-		recursive := NewRecursive(id.Type, &src.ptrs, func() *Encodable {
-			return src.source.NewEncodable(id.Type, id.Config, gen.source)
+		recursive := NewRecursive(id, &src.ptrs, func() *Encodable {
+			return src.source.NewEncodable(id, gen.source)
 		})
 
 		*gen.enc = recursive
@@ -163,8 +160,8 @@ func (src *RecursiveSource) makeRecursive(id EncID, source Source) *Encodable {
 		return gen.enc
 	}
 
-	enc := Encodable(NewRecursive(id.Type, &src.ptrs, func() *Encodable {
-		return src.source.NewEncodable(id.Type, id.Config, source)
+	enc := Encodable(NewRecursive(id, &src.ptrs, func() *Encodable {
+		return src.source.NewEncodable(id, source)
 	}))
 
 	src.seen[id] = &genState{

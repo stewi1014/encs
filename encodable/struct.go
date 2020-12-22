@@ -14,15 +14,6 @@ import (
 	"github.com/stewi1014/encs/encio"
 )
 
-// NewStruct return a new struct Encodable.
-// It creates a StructLoose or StructStrict Encodable depending on if LooseTyping is set in config.
-func NewStruct(ty reflect.Type, config Config, src Source) Encodable {
-	if config&LooseTyping > 0 {
-		return NewStructLoose(ty, config, src)
-	}
-	return NewStructStrict(ty, config, src)
-}
-
 type structMembers []reflect.StructField
 
 func (a structMembers) Len() int           { return len(a) }
@@ -65,7 +56,7 @@ func structFields(ty reflect.Type) []reflect.StructField {
 }
 
 // NewStructLoose returns a new struct Encodable.
-func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
+func NewStructLoose(ty reflect.Type, src Source) *StructLoose {
 	if ty.Kind() != reflect.Struct {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", ty), 0))
 	}
@@ -87,7 +78,7 @@ func NewStructLoose(ty reflect.Type, config Config, src Source) *StructLoose {
 		f := looseField{
 			offset: field.Offset,
 			id:     hasher.Sum32(),
-			enc:    src.NewEncodable(field.Type, config, nil),
+			enc:    src.NewEncodable(field.Type, nil),
 		}
 
 		hasher.Reset()
@@ -210,7 +201,7 @@ func (e *StructLoose) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewStructStrict returns a new struct Encodable.
-func NewStructStrict(ty reflect.Type, config Config, src Source) *StructStrict {
+func NewStructStrict(ty reflect.Type, src Source) *StructStrict {
 	if ty.Kind() != reflect.Struct {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", ty), 0))
 	}
@@ -223,7 +214,7 @@ func NewStructStrict(ty reflect.Type, config Config, src Source) *StructStrict {
 
 	for i := range fields {
 		s.fields[i].offset = fields[i].Offset
-		s.fields[i].enc = src.NewEncodable(fields[i].Type, config, nil)
+		s.fields[i].enc = src.NewEncodable(fields[i].Type, nil)
 	}
 
 	return s

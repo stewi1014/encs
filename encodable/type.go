@@ -84,7 +84,7 @@ func register(ty reflect.Type) bool {
 }
 
 // GetID returns a unique ID for a given reflect.Type.
-func GetID(ty reflect.Type, config Config) (id ID) {
+func GetID(ty reflect.Type) (id ID) {
 	if ty == nil {
 		return ID{0, 0}
 	}

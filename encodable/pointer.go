@@ -10,7 +10,7 @@ import (
 )
 
 // NewPointer returns a new pointer Encodable.
-func NewPointer(ty reflect.Type, config Config, src Source) Encodable {
+func NewPointer(ty reflect.Type, src Source) Encodable {
 	if ty.Kind() != reflect.Ptr {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a pointer", ty), 0))
 	}
@@ -18,7 +18,7 @@ func NewPointer(ty reflect.Type, config Config, src Source) Encodable {
 	return &Pointer{
 		buff: make([]byte, 1),
 		ty:   ty,
-		elem: src.NewEncodable(ty.Elem(), config, nil),
+		elem: src.NewEncodable(ty.Elem(), nil),
 	}
 }
 

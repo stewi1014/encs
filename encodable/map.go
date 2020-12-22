@@ -10,14 +10,14 @@ import (
 )
 
 // NewMap returns a new map Encodable.
-func NewMap(ty reflect.Type, config Config, src Source) *Map {
+func NewMap(ty reflect.Type, src Source) *Map {
 	if ty.Kind() != reflect.Map {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a map", ty), 0))
 	}
 
 	return &Map{
-		key: src.NewEncodable(ty.Key(), config, nil),
-		val: src.NewEncodable(ty.Elem(), config, nil),
+		key: src.NewEncodable(ty.Key(), nil),
+		val: src.NewEncodable(ty.Elem(), nil),
 		len: encio.NewInt32(),
 		t:   ty,
 	}
@@ -46,7 +46,7 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	v := reflect.NewAt(e.t, ptr).Elem()
 
 	if v.IsNil() {
-		return e.len.Encode(w, nilPointer)
+		return e.len.Encode(w, -1)
 	}
 
 	if err := e.len.Encode(w, int32(v.Len())); err != nil {
@@ -85,7 +85,7 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	m := reflect.NewAt(e.t, ptr).Elem()
 
-	if l == nilPointer {
+	if l < 0 {
 		m.Set(reflect.New(e.t).Elem())
 		return nil
 	}

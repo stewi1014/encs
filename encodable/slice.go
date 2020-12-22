@@ -10,14 +10,14 @@ import (
 )
 
 // NewSlice returns a new slice Encodable.
-func NewSlice(ty reflect.Type, config Config, src Source) *Slice {
+func NewSlice(ty reflect.Type, src Source) *Slice {
 	if ty.Kind() != reflect.Slice {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a slice", ty), 0))
 	}
 
 	return &Slice{
 		t:    ty,
-		elem: src.NewEncodable(ty.Elem(), config, nil),
+		elem: src.NewEncodable(ty.Elem(), nil),
 		len:  encio.NewInt32(),
 	}
 }
@@ -47,7 +47,7 @@ func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 	slice := reflect.NewAt(e.t, ptr).Elem()
 	if slice.IsNil() {
-		return e.len.Encode(w, nilPointer)
+		return e.len.Encode(w, -1)
 	}
 
 	l := slice.Len()
@@ -75,7 +75,7 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if l == nilPointer {
+	if l < 0 {
 		// Nil slice
 		slice.Set(reflect.New(e.t).Elem())
 		return nil

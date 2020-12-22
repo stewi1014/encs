@@ -14,8 +14,8 @@ import (
 func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
 		r:       r,
-		typeEnc: encodable.NewType(0),
-		source:  encodable.NewCachingSource(encodable.NewRecursiveSource(encodable.DefaultSource{})),
+		typeEnc: encodable.NewType(false),
+		source:  encodable.NewCachingSource(encodable.NewRecursiveSource(DefaultSource)),
 	}
 }
 
@@ -57,6 +57,6 @@ func (d *Decoder) Decode(v interface{}) error {
 		return encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot set %v to received type %v", val.Type(), ty), 0)
 	}
 
-	enc := d.source.NewEncodable(ty, 0, nil)
+	enc := d.source.NewEncodable(ty, nil)
 	return (*enc).Decode(unsafe.Pointer(val.UnsafeAddr()), d.r)
 }

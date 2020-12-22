@@ -79,13 +79,13 @@ type Int32 struct {
 	buff []byte
 }
 
-// Encode writes the given uint32 to w.
+// Encode writes the given int32 to w.
 func (e *Int32) Encode(w io.Writer, n int32) error {
 	EncodeInt32(e.buff, n)
 	return Write(e.buff, w)
 }
 
-// Decode decodes a uint32 from r.
+// Decode decodes a int32 from r.
 func (e *Int32) Decode(r io.Reader) (int32, error) {
 	err := Read(e.buff, r)
 	return DecodeInt32(e.buff), err

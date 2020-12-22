@@ -10,17 +10,17 @@ import (
 )
 
 // NewType returns a new reflect.Type encodable.
-func NewType(config Config) *Type {
+func NewType(strict bool) *Type {
 	e := &Type{
 		unregistered: make(map[ID]reflect.Type),
 		typeByID:     make(map[ID]reflect.Type),
 		idByType:     make(map[reflect.Type]ID),
-		config:       config,
 		buff:         make([]byte, 16),
+		strict:       strict,
 	}
 
 	for _, t := range registered {
-		id := GetID(t, config)
+		id := GetID(t)
 
 		e.typeByID[id] = t
 		e.idByType[t] = id
@@ -31,6 +31,9 @@ func NewType(config Config) *Type {
 
 // Type is an encodable for reflect.Type values.
 type Type struct {
+	// Strict type checking
+	strict bool
+
 	// unregistered contains types that should be known for speeds sake, but that have not been registered.
 	// If an element in unregistered is used and neccecary for decoding, a warning should be shown, as the fact the type is
 	// in unregistered is completely coincidental, and slight changes in usage or
@@ -39,7 +42,6 @@ type Type struct {
 
 	// idByType contains both registered and unregistered types.
 	idByType map[reflect.Type]ID
-	config   Config
 	buff     []byte
 }
 
@@ -47,7 +49,7 @@ type Type struct {
 func (e *Type) Size() int { return 16 }
 
 // Type implements Encodable.
-func (e *Type) Type() reflect.Type { return reflectValueType }
+func (e *Type) Type() reflect.Type { return reflectTypeType }
 
 // Encode implements Encodable.
 func (e *Type) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -55,7 +57,7 @@ func (e *Type) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	id, ok := e.idByType[ty]
 	if !ok {
 		// This type hasn't been registered. Register it now.
-		id = GetID(ty, e.config)
+		id = GetID(ty)
 
 		e.idByType[ty] = id
 	}
@@ -99,7 +101,7 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		fmt.Fprintln(encio.Warnings, encio.NewError(
 			encio.ErrBadType,
 			fmt.Sprintf(
-				"%v is only known because it happened to be passed to Decode previously; it isn't registered. this is unreliable. register it!",
+				"%v is only known because it was previously passed to Decode; it isn't registered. this is unreliable and likely only worked out of pure luck. register it!",
 				ty.String(),
 			),
 			0,
@@ -120,7 +122,7 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 			return nil
 		}
 
-		existing := GetID(ty, e.config)
+		existing := GetID(ty)
 		if existing == id {
 			// slow path
 			// Type is not registered, but the existing type has the same id as received.
@@ -133,14 +135,14 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 		var nameMatch reflect.Type
 		if existing[0] == id[0] {
 			// We have a loose match with the existing.
-			if e.config&LooseTyping != 0 {
+			if !e.strict {
 				return nil
 			}
 			nameMatch = ty
 		} else {
 			for rty, rid := range e.idByType {
 				if rid[0] == id[0] {
-					if e.config&LooseTyping != 0 {
+					if !e.strict {
 						// We found a loose match with an existing type.
 						*(*reflect.Type)(ptr) = rty
 						return nil
@@ -159,19 +161,17 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewValue returns a new reflect.Value encodable.
-func NewValue(config Config, src Source) *Value {
+func NewValue(src Source) *Value {
 	return &Value{
-		typeEnc: NewType(config),
+		typeEnc: src.NewEncodable(reflectTypeType, nil),
 		src:     NewCachingSource(src),
-		config:  config,
 		buff:    make([]byte, 1),
 	}
 }
 
 // Value is an encodable for reflect.Value values.
 type Value struct {
-	typeEnc *Type
-	config  Config
+	typeEnc *Encodable
 	src     *CachingSource
 	buff    []byte
 }
@@ -203,14 +203,20 @@ func (e *Value) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	ty := v.Type()
 
 	if !v.CanAddr() {
+		// We can safely copy this value, as reflect informs us that this value is unaddressable.
+		// reflect really better not be lying to us...
+		// If it actually is addressable and reflect just doesn't want us to have the address then we may have a problem.
+		// When encoding references I need one of two things. The address to compare with others, or a 100% guarantee that no other pointer *could* exist.
+		// A user could always do some weird things (like me :\) with pointers and have a reference that shouldn't be possible in the go type system,
+		// but they can write their own Encodable if that's the case.
 		n := reflect.New(ty).Elem()
 		n.Set(v)
 		v = n
 	}
 
-	enc := e.src.NewEncodable(ty, e.config, nil)
+	enc := e.src.NewEncodable(ty, nil)
 
-	if err := e.typeEnc.Encode(unsafe.Pointer(&ty), w); err != nil {
+	if err := (*e.typeEnc).Encode(unsafe.Pointer(&ty), w); err != nil {
 		return err
 	}
 
@@ -231,11 +237,11 @@ func (e *Value) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	}
 
 	var ty reflect.Type
-	if err := e.typeEnc.Decode(unsafe.Pointer(&ty), r); err != nil {
+	if err := (*e.typeEnc).Decode(unsafe.Pointer(&ty), r); err != nil {
 		return err
 	}
 
-	enc := e.src.NewEncodable(ty, e.config, nil)
+	enc := e.src.NewEncodable(ty, nil)
 
 	v := (*reflect.Value)(ptr)
 	if !v.CanAddr() || v.Type() != ty {
@@ -248,7 +254,7 @@ func (e *Value) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	if err := (*enc).Decode(unsafe.Pointer(v.UnsafeAddr()), r); err != nil {
 		// I no longer trust whatever is in the value
-		*(*reflect.Value)(ptr) = reflect.Value{}
+		*(*reflect.Value)(ptr) = reflect.Value{} // zero it
 		return err
 	}
 	return nil

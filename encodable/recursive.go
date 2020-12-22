@@ -20,7 +20,7 @@ import (
 func NewRecursiveSource(source Source) *RecursiveSource {
 	return &RecursiveSource{
 		source: source,
-		seen:   make(map[EncID]*genState),
+		seen:   make(map[reflect.Type]*genState),
 		ptrs:   NewPointers(),
 	}
 }
@@ -29,7 +29,7 @@ func NewRecursiveSource(source Source) *RecursiveSource {
 type RecursiveSource struct {
 	source Source
 	ptrs   Pointers
-	seen   map[EncID]*genState
+	seen   map[reflect.Type]*genState
 	hasAny bool
 	depth  int
 }
@@ -37,7 +37,7 @@ type RecursiveSource struct {
 // genState is the state of generation of an encodable.
 type genState struct {
 	enc    *Encodable // changes to this field must be done through de-referencing.
-	source Source
+	source Source     // Let's not assume Sources can't change during generation; make sure we use the same one.
 	depth  int
 	state  byte
 }
@@ -53,7 +53,7 @@ const (
 // The returned Encodable is usable upon return, but can be retroactively swapped. As such the returned Encodable must not be dereferenced.
 // It wraps Encodables as little as possible while still keeping the ability to handle recursive values and types,
 // and the correct re-creation of recursive values on decode.
-func (src *RecursiveSource) NewEncodable(ty reflect.Type, config Config, source Source) *Encodable {
+func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encodable {
 	if source == nil {
 		source = src
 	}
@@ -61,10 +61,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, config Config, source 
 	src.depth++
 	defer func() { src.depth-- }()
 
-	id := EncID{
-		Type:   ty,
-		Config: config,
-	}
+	id := ty
 
 	if ty.Kind() == reflect.Interface || ty == reflectValueType {
 		// These types can contain anything.
@@ -102,7 +99,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, config Config, source 
 		state:  stateGenerating,
 	}
 
-	enc := src.source.NewEncodable(ty, config, source)
+	enc := src.source.NewEncodable(ty, source)
 
 	// Time to see what happened.
 
@@ -147,14 +144,14 @@ func (src *RecursiveSource) setRecursed(depth int) {
 
 // makeRecursive either wraps an existing Encodable with Recursive, or creates a new Recursive Encodable.
 // It updates the map.
-func (src *RecursiveSource) makeRecursive(id EncID, source Source) *Encodable {
+func (src *RecursiveSource) makeRecursive(id reflect.Type, source Source) *Encodable {
 	if gen, ok := src.seen[id]; ok {
 		if gen.state == stateRecursed {
 			return gen.enc
 		}
 
-		recursive := NewRecursive(id.Type, &src.ptrs, func() *Encodable {
-			return src.source.NewEncodable(id.Type, id.Config, gen.source)
+		recursive := NewRecursive(id, &src.ptrs, func() *Encodable {
+			return src.source.NewEncodable(id, gen.source)
 		})
 
 		*gen.enc = recursive
@@ -163,8 +160,8 @@ func (src *RecursiveSource) makeRecursive(id EncID, source Source) *Encodable {
 		return gen.enc
 	}
 
-	enc := Encodable(NewRecursive(id.Type, &src.ptrs, func() *Encodable {
-		return src.source.NewEncodable(id.Type, id.Config, source)
+	enc := Encodable(NewRecursive(id, &src.ptrs, func() *Encodable {
+		return src.source.NewEncodable(id, source)
 	}))
 
 	src.seen[id] = &genState{
@@ -184,8 +181,8 @@ func NewPointers() Pointers {
 	}
 }
 
-// Pointers provides methods for resolving pointer cycles.
-// It takes a reflect.Type in methods, and uses them to check equality agaist recorded objects,
+// Pointers provides methods for keeping track of pointers and their types, it is helpful for detecting and resolving pointer cycles.
+// It takes a reflect.Type in methods, sometimes uneccecaraly, but allows it to asset the correct type before return.
 // returning an error if types do not match. This is not so neccecary for Encoding, but is very important to validate when Decoding.
 //
 // Encoders can call Has() before encoding to check if the pointer has already been encoded,
@@ -209,27 +206,19 @@ type object struct {
 // Get returns the object at the given index.
 func (p *Pointers) Get(index int32, ty reflect.Type) (unsafe.Pointer, error) {
 	if index < 0 || index >= int32(len(p.pointers)) {
-		return nil, encio.NewError(
-			encio.ErrMalformed,
-			fmt.Sprintf(
-				"index out of bounds, object %v is referenced but we only have %v objects",
-				index,
-				len(p.pointers),
-			),
-			1,
+		return nil, fmt.Errorf(
+			"index out of bounds, object %v is referenced but we only have %v objects",
+			index,
+			len(p.pointers),
 		)
 	}
 
 	if p.pointers[index].Type != ty {
-		return nil, encio.NewError(
-			encio.ErrMalformed,
-			fmt.Sprintf(
-				"object %v referenced, but it has type %v. wanted %v",
-				index,
-				p.pointers[index].Type.String(),
-				ty.String(),
-			),
-			1,
+		return nil, fmt.Errorf(
+			"object %v referenced, but it has type %v. wanted %v",
+			index,
+			p.pointers[index].Type.String(),
+			ty.String(),
 		)
 	}
 
@@ -257,13 +246,13 @@ func (p *Pointers) Add(ptr unsafe.Pointer, ty reflect.Type) {
 }
 
 // Has returns true if the given pointer has already been added.
-func (p *Pointers) Has(ptr unsafe.Pointer, ty reflect.Type) (index int32, ok bool, err error) {
+func (p *Pointers) Has(ptr unsafe.Pointer, ty reflect.Type) (index int32, ok bool) {
 	for i := int32(0); i < int32(len(p.pointers)); i++ {
 		if p.pointers[i].ptr == ptr && p.pointers[i].Type == ty {
-			return i, true, nil
+			return i, true
 		}
 	}
-	return 0, false, nil
+	return 0, false
 }
 
 // HasReference returns true and the index if the given reference type's pointer matches an existing value.
@@ -344,8 +333,7 @@ const (
 // During Encode, Recursive will check if the pointer has already been encoded, taking care to check reference types such as maps.
 // If not, it then records the pointer, and encodes using the underlying Encodable returned from newFunc.
 //
-// If a pointer is found to be already encoded, it doesn't call the underlying at all, and instead writes the index, the id, of the pointer,
-// which can be used to find the same value which would have been previously decoded during decode.
+
 type Recursive struct {
 	new  func() *Encodable
 	ty   reflect.Type
@@ -368,10 +356,7 @@ func (e *Recursive) Encode(ptr unsafe.Pointer, w io.Writer) error {
 		defer e.ptrs.Reset()
 	}
 
-	index, has, err := e.ptrs.Has(ptr, e.ty)
-	if err != nil {
-		return err
-	}
+	index, has := e.ptrs.Has(ptr, e.ty)
 
 	if has {
 		// We've already encoded this pointer.

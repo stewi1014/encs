@@ -508,9 +508,8 @@ func TestVarint(t *testing.T) {
 	testCases := getVarintTestCases()
 
 	// Use a caching source so Varint is reused.
-	src := encodable.NewCachingSource(encodable.SourceFromFunc(func(ty reflect.Type, config encodable.Config, source encodable.Source) *encodable.Encodable {
-		enc := encodable.Encodable(encodable.NewVarint(ty))
-		return &enc
+	src := encodable.NewCachingSource(encodable.SourceFromFunc(func(ty reflect.Type, source encodable.Source) encodable.Encodable {
+		return encodable.NewVarint(ty)
 	}))
 
 	for _, tC := range testCases {
@@ -519,8 +518,8 @@ func TestVarint(t *testing.T) {
 			encodedValue := reflect.New(reflect.TypeOf(tC.enc)).Elem()
 			encodedValue.Set(reflect.ValueOf(tC.enc))
 
-			enc := src.NewEncodable(encodedValue.Type(), 0, nil)
-			dec := src.NewEncodable(decodeValue.Type(), 0, nil)
+			enc := src.NewEncodable(encodedValue.Type(), nil)
+			dec := src.NewEncodable(decodeValue.Type(), nil)
 
 			runTestNoErr(encodedValue, decodeValue, *enc, *dec, t)
 

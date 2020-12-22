@@ -19,20 +19,6 @@ func reflectValueSelf() reflect.Value {
 var testCases = []interface{}{
 	true,
 	int(123),
-	int8(123),
-	int16(-12345),
-	int32(123456),
-	int64(-1234567),
-	uint(123),
-	uint8(123),
-	uint16(12345),
-	uint32(123456),
-	uint64(1234567),
-	uintptr(12345678),
-	float32(1.2345),
-	float64(1.2345678),
-	complex64(1.2345 + 2.3456i),
-	complex128(1.2345678 + 2.3456789i),
 	[]byte("hello"),
 	string("hello"),
 	[32]byte{},
@@ -58,25 +44,48 @@ func testValues() []reflect.Value {
 	return s
 }
 
+var reflectTestSource = encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
+	switch t.Kind() {
+	case reflect.Bool:
+		return encodable.NewBool(t)
+	case reflect.Int:
+		return encodable.NewInt(t)
+	case reflect.Slice:
+		return encodable.NewSlice(t, s)
+	case reflect.Uint8:
+		return encodable.NewUint8(t)
+	case reflect.String:
+		return encodable.NewString(t)
+	case reflect.Array:
+		return encodable.NewArray(t, s)
+	case reflect.Map:
+		return encodable.NewMap(t, s)
+	case reflect.Ptr:
+		return encodable.NewPointer(t, s)
+	}
+	if t == reflect.TypeOf(new(reflect.Value)).Elem() {
+		return encodable.NewValue(s)
+	}
+	if t == reflect.TypeOf(new(reflect.Type)).Elem() {
+		return encodable.NewType(true)
+	}
+	return nil
+})
+
 func TestType(t *testing.T) {
 	testCases := testTypes()
-	reflectTypeType := reflect.TypeOf(new(reflect.Type)).Elem()
 
-	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+	for _, tC := range testCases {
 
-	for _, config := range configPermutations {
-		for _, tC := range testCases {
-
-			desc := "<nil>"
-			if tC != nil {
-				desc = tC.String()
-			}
-
-			t.Run(getDescription(desc, config), func(t *testing.T) {
-				enc := src.NewEncodable(reflectTypeType, config, nil)
-				testEqual(&tC, &tC, *enc, t)
-			})
+		desc := "<nil>"
+		if tC != nil {
+			desc = tC.String()
 		}
+
+		t.Run(desc, func(t *testing.T) {
+			enc := encodable.NewType(true)
+			testEqual(&tC, &tC, enc, t)
+		})
 	}
 }
 
@@ -88,7 +97,7 @@ func BenchmarkType_Decode(b *testing.B) {
 	buff := new(buffer)
 
 	// populate buffer
-	e := encodable.NewType(0)
+	e := encodable.NewType(true)
 	for i := 0; i < encodeNum; i++ {
 		err := e.Encode(unsafe.Pointer(&types[i%len(types)]), buff)
 		if err != nil {
@@ -113,7 +122,7 @@ func BenchmarkType_Decode(b *testing.B) {
 
 func BenchmarkType_Encode(b *testing.B) {
 	types := testTypes()
-	e := encodable.NewType(0)
+	e := encodable.NewType(true)
 
 	b.ResetTimer()
 	var j int
@@ -132,15 +141,12 @@ func BenchmarkType_Encode(b *testing.B) {
 func TestValue(t *testing.T) {
 	testCases := testValues()
 
-	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
+	for _, tC := range testCases {
+		t.Run(tC.String(), func(t *testing.T) {
+			enc := encodable.NewValue(reflectTestSource)
 
-	for _, config := range configPermutations {
-		for _, tC := range testCases {
-			t.Run(getDescription(tC.String(), config), func(t *testing.T) {
-				enc := src.NewEncodable(reflect.TypeOf(reflect.Value{}), config, nil)
-				testEqual(&tC, &tC, *enc, t)
-			})
-		}
+			testEqual(&tC, &tC, enc, t)
+		})
 	}
 }
 
@@ -151,9 +157,8 @@ func BenchmarkValue_Decode(b *testing.B) {
 	encodeNum := len(values) * 10
 	buff := new(buffer)
 
-	// populate buffer
-	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-	enc := src.NewEncodable(reflect.TypeOf(reflect.Value{}), 0, nil)
+	enc := encodable.NewValue(reflectTestSource)
+
 	for i := 0; i < encodeNum; i++ {
 		err := (*enc).Encode(unsafe.Pointer(&values[i%len(values)]), buff)
 		if err != nil {
@@ -178,8 +183,7 @@ func BenchmarkValue_Decode(b *testing.B) {
 
 func BenchmarkValue_Encode(b *testing.B) {
 	values := testValues()
-	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-	enc := src.NewEncodable(reflect.TypeOf(reflect.Value{}), 0, nil)
+	enc := encodable.NewValue(reflectTestSource)
 
 	b.ResetTimer()
 	var j int

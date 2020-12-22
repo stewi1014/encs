@@ -15,23 +15,11 @@ package encodable
 // then it must implement its own recursion checks; the Recursive Encodable will not work.
 
 import (
-	"fmt"
 	"io"
 	"reflect"
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
-)
-
-// Config controls the configuration of encodables.
-type Config int
-
-const (
-	// LooseTyping will make encs ignore struct fields in named structs and interface methods,
-	// number types (int*, uint* and float*) are treated as equal,
-	// and complex types (complex64, complex128) are treated as equal.
-	// For implementation details see StructLoose, Varint, and VarComplex encodables, and for exact details on how type resolving is changed, see Type.
-	LooseTyping Config = 1 >> iota
 )
 
 const (
@@ -89,124 +77,6 @@ type Encodable interface {
 	// Decode will only read what Encode wrote; no extra data is read.
 	// It panics if ptr is nil.
 	Decode(ptr unsafe.Pointer, r io.Reader) error
-}
-
-// NewDefaultSource returns a new DefaultSoure.
-func NewDefaultSource() DefaultSource { return DefaultSource{} }
-
-// DefaultSource is a simple Source for Encodables. It performs no pointer logic.
-// Use RecursiveSource unless it is guaranteed there will not be recursive types or values encoded,
-// and the pointer reference structure doesn't matter. i.e. If a struct Encodable is created with an int and *int field
-// where the *int field points to the int field, the decoded *int field will not point to the struct's own field.
-// It is also slower for large types.
-// DefaultSource{} is an appropriate way to instantiate it.
-type DefaultSource struct{}
-
-// NewEncodable implements Source.
-func (s DefaultSource) NewEncodable(ty reflect.Type, config Config, src Source) (enc *Encodable) {
-	if src == nil {
-		src = s
-	}
-
-	enc = new(Encodable)
-
-	ptrt := reflect.PtrTo(ty)
-	kind := ty.Kind()
-	switch {
-	// Implementers
-	case ptrt.Implements(binaryMarshalerType) && ptrt.Implements(binaryUnmarshalerType):
-		*enc = NewBinaryMarshaler(ty)
-
-	// Specific types
-	case ty == reflectTypeType:
-		*enc = NewType(config)
-	case ty == reflectValueType:
-		*enc = NewValue(config, src)
-
-	// Compound-Types
-	case kind == reflect.Ptr:
-		*enc = NewPointer(ty, config, src)
-	case kind == reflect.Interface:
-		*enc = NewInterface(ty, config, src)
-	case kind == reflect.Struct:
-		*enc = NewStruct(ty, config, src)
-	case kind == reflect.Array:
-		*enc = NewArray(ty, config, src)
-	case kind == reflect.Slice:
-		*enc = NewSlice(ty, config, src)
-	case kind == reflect.Map:
-		*enc = NewMap(ty, config, src)
-
-	// Number types
-	case kind == reflect.Uint8,
-		kind == reflect.Uint16,
-		kind == reflect.Uint32,
-		kind == reflect.Uint64,
-		kind == reflect.Uint,
-		kind == reflect.Int8,
-		kind == reflect.Int16,
-		kind == reflect.Int32,
-		kind == reflect.Int64,
-		kind == reflect.Int,
-		kind == reflect.Uintptr,
-		kind == reflect.Float32,
-		kind == reflect.Float64:
-		*enc = NewNumber(ty, config)
-
-	case kind == reflect.Complex64,
-		kind == reflect.Complex128:
-		*enc = NewComplex(ty, config)
-
-	// Misc types
-	case kind == reflect.Bool:
-		*enc = NewBool(ty)
-	case kind == reflect.String:
-		*enc = NewString(ty)
-	default:
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot create encodable for type %v", ty), 0))
-	}
-
-	return
-}
-
-// NewNumber generates an encodable for the given number type.
-// It supports the LooseTyping flag, and if set, returns Varint
-// an encodable that can encode from/decode to any int* uint* and float* type.
-// Otherwise, it returns the appropriate type specific Encodable.
-func NewNumber(ty reflect.Type, config Config) Encodable {
-	kind := ty.Kind()
-	switch {
-	case config&LooseTyping != 0:
-		return NewVarint(ty)
-	case kind == reflect.Uint8:
-		return NewUint8(ty)
-	case kind == reflect.Uint16:
-		return NewUint16(ty)
-	case kind == reflect.Uint32:
-		return NewUint32(ty)
-	case kind == reflect.Uint64:
-		return NewUint64(ty)
-	case kind == reflect.Uint:
-		return NewUint(ty)
-	case kind == reflect.Int8:
-		return NewInt8(ty)
-	case kind == reflect.Int16:
-		return NewInt16(ty)
-	case kind == reflect.Int32:
-		return NewInt32(ty)
-	case kind == reflect.Int64:
-		return NewInt64(ty)
-	case kind == reflect.Int:
-		return NewInt(ty)
-	case kind == reflect.Uintptr:
-		return NewUintptr(ty)
-	case kind == reflect.Float32:
-		return NewFloat32(ty)
-	case kind == reflect.Float64:
-		return NewFloat64(ty)
-	default:
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a number type. must be int* uint*, or float*", ty.String()), 0))
-	}
 }
 
 // checkPtr panics if ptr is nil.

@@ -10,7 +10,7 @@ import (
 )
 
 // NewArray returns a new array Encodable.
-func NewArray(ty reflect.Type, config Config, src Source) *Array {
+func NewArray(ty reflect.Type, src Source) *Array {
 	if ty.Kind() != reflect.Array {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an Array", ty), 0))
 	}
@@ -18,7 +18,7 @@ func NewArray(ty reflect.Type, config Config, src Source) *Array {
 	return &Array{
 		len:  uintptr(ty.Len()),
 		size: ty.Elem().Size(),
-		elem: src.NewEncodable(ty.Elem(), config, nil),
+		elem: src.NewEncodable(ty.Elem(), nil),
 	}
 }
 

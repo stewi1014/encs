@@ -4,45 +4,47 @@ import (
 	"reflect"
 )
 
-// EncID is comparable struct representing an encodable of a particular type and configuration.
-// It can be used as keys in maps of Encodables to confirm equality across Encodables.
-type EncID struct {
-	reflect.Type
-	Config
-}
-
 // Source is a generator of Encodables. Compound type Encodables take Source as an argument upon creation,
 // and can use it for the generation of their element types either during creation or during encoding or decoding.
-// **The Source is responsible for resolving recursive types and values**.
+// Source is responsible for resolving recursive types and values, but this is not a requirement for implementing Source.
+//
+// There are a few implementations of Source in this library, and in many cases repeatedly wrapping Sources is helpful.
+//
+// For example, a Source may not implement any kind of handling for recursive types or values.
+// If recursive types or values are involved, the Encodable returned by this Source may fail to accurately reproduce a pointer cycle,
+// break assumptions Encodables must be able to make (e.g. no nested calls), or recurse infinitely at generation or encode-time.
+// These kinds of 'dumb' Sources can define what encodables to use for what types, and then be wrapped with a generalised implementation of Source to provide more functionality.
+//
+// RecursiveSource for example, has no idea what Encodables should be used to encode a given type, rather, it can wrap a big switch statement and provide handling for resursive types.
 type Source interface {
 	// NewEncodable returns a new Encodable.
-	// Source should take care to avoid infinite recursion, taking note of when it is called to create an Encodable from inside the same Encodable's creation function,
-	// or when a type could possibly reference a parent encodable's value. The Encodable may not be de-referenced; Source may retroactively replace the Encodable.
+	// If non-nil, the Source given to this function is given to Encodables upon creation, otherwise it passes itself.
 	//
 	// It returns a pointer to an Encodable as it needs to be able to retroactively modify it. Subsequent Encodable generation could find that the type the Encodable
-	// is encoding could be referenced, either during generation, or at runtime through a type like interface{} or reflect.Value. If so, in lieu of adding pointer logic to everything,
-	// Source must be able to retroactively modify the encodable to wrap pointer logic onto it.
-	//
-	// Implementations of Source can use Recursive as an Encodable that solves references and recursive cases.
-	//
-	// The Source passed to NewEncodable must be passed to the Encodable that it creates. It is used by wrapping Sources to pass themselves to new Encodables,
-	// so they don't loose control of element Encodable generation.
-	NewEncodable(reflect.Type, Config, Source) *Encodable
+	// is encoding could be referenced, either during generation, or at encode-time through an interface or reflect.Value.
+	// As such, in lieu of adding recursion avoidance/detection to all Encodables,
+	// Source must be able to retroactively modify the encodable to wrap this functionality onto them, preferably with as little performance impact as possible.
+	NewEncodable(reflect.Type, Source) *Encodable
 }
 
-// SourceFromFunc creates a source using a function. It is mostly used for spoofing tests, but can do other things.
-// Typically, Sources need to retain information between Encodable generation for various reasons, including avoiding infinite recursion
-// and caching for speed. Usability is typically limited to testing and creating "simple" sources that are wrapped with other sources providing neccecary features.
-func SourceFromFunc(newEncodable func(reflect.Type, Config, Source) *Encodable) Source {
-	return funcSource{newEncodable: newEncodable}
+// SourceFromFunc creates a source from a function.
+// It will substitute itself if NewEncodable() is called with a nil-source.
+//
+// It will also panic if nil is returned.
+func SourceFromFunc(source func(reflect.Type, Source) Encodable) Source {
+	return funcSource{newEncodable: source}
 }
 
 type funcSource struct {
-	newEncodable func(reflect.Type, Config, Source) *Encodable
+	newEncodable func(reflect.Type, Source) Encodable
 }
 
-func (s funcSource) NewEncodable(ty reflect.Type, config Config, source Source) *Encodable {
-	return s.newEncodable(ty, config, source)
+func (s funcSource) NewEncodable(ty reflect.Type, source Source) *Encodable {
+	if source == nil {
+		source = s
+	}
+	enc := s.newEncodable(ty, source)
+	return &enc
 }
 
 // NewCachingSource returns a new CachingSource, using source for cache misses.
@@ -51,25 +53,25 @@ func (s funcSource) NewEncodable(ty reflect.Type, config Config, source Source) 
 // nested calls to itself. Use the original, CachingSource.Source to pass to element Encodables, assuming it properly resolves recursive types.
 func NewCachingSource(source Source) *CachingSource {
 	return &CachingSource{
-		cache:  make(map[EncID]*Encodable),
+		cache:  make(map[reflect.Type]*Encodable),
 		Source: source,
 	}
 }
 
 // CachingSource provides a cache of Encodables.
 type CachingSource struct {
-	cache map[EncID]*Encodable
+	cache map[reflect.Type]*Encodable
 	Source
 }
 
 // NewEncodable implements Source.
-func (src *CachingSource) NewEncodable(ty reflect.Type, config Config, parent Source) (enc *Encodable) {
-	enc, ok := src.cache[EncID{Type: ty, Config: config}]
+func (src *CachingSource) NewEncodable(ty reflect.Type, parent Source) (enc *Encodable) {
+	enc, ok := src.cache[ty]
 	if ok {
 		return enc
 	}
 
-	enc = src.Source.NewEncodable(ty, config, parent)
-	src.cache[EncID{Type: ty, Config: config}] = enc
+	enc = src.Source.NewEncodable(ty, parent)
+	src.cache[ty] = enc
 	return enc
 }

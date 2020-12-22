@@ -119,22 +119,6 @@ func (e *Float64) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	return nil
 }
 
-// NewComplex returns an Encodable for the given complex type.
-// It supports complex64 and complex128.
-// If LooseTyping is enabled, it returns VarComplex, which allows encoding between different complex types.
-func NewComplex(ty reflect.Type, config Config) Encodable {
-	switch {
-	case config&LooseTyping != 0:
-		return NewVarComplex(ty)
-	case ty.Kind() == reflect.Complex128:
-		return NewComplex128(ty)
-	case ty.Kind() == reflect.Complex64:
-		return NewComplex64(ty)
-	default:
-		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of complex64 or complex128 kind", ty.String()), 0))
-	}
-}
-
 // NewVarComplex returns a new VarComplex Encodable.
 // It supports complex64 and complex128 types.
 func NewVarComplex(ty reflect.Type) *VarComplex {

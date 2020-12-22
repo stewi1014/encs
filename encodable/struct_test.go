@@ -77,15 +77,42 @@ var structTestCases = []struct {
 	},
 }
 
+var structTestSource = encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
+	switch t.Kind() {
+	case reflect.Bool:
+		return encodable.NewBool(t)
+	case reflect.Int:
+		return encodable.NewInt(t)
+	case reflect.Uint:
+		return encodable.NewUint(t)
+	case reflect.Slice:
+		return encodable.NewSlice(t, s)
+	case reflect.Uint8:
+		return encodable.NewUint8(t)
+	case reflect.String:
+		return encodable.NewString(t)
+	case reflect.Array:
+		return encodable.NewArray(t, s)
+	case reflect.Map:
+		return encodable.NewMap(t, s)
+	case reflect.Ptr:
+		return encodable.NewPointer(t, s)
+	case reflect.Float64:
+		return encodable.NewFloat64(t)
+	}
+
+	if t == reflect.TypeOf(time.Time{}) {
+		return encodable.NewBinaryMarshaler(t)
+	}
+	return nil
+})
+
 func TestStruct(t *testing.T) {
 	for _, tC := range structTestCases {
-		for _, config := range configPermutations {
-			t.Run(getDescription(tC.desc, config), func(t *testing.T) {
-				src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-				enc := src.NewEncodable(reflect.TypeOf(tC.encode).Elem(), config, nil)
-				testEqual(tC.encode, tC.want, *enc, t)
-			})
-		}
+		t.Run(tC.desc, func(t *testing.T) {
+			enc := encodable.NewStructStrict(reflect.TypeOf(tC.encode).Elem(), structTestSource)
+			testEqual(tC.encode, tC.want, *enc, t)
+		})
 	}
 }
 
@@ -99,10 +126,9 @@ func BenchmarkStructStrictEncode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-	enc := src.NewEncodable(reflect.TypeOf(benchStruct), 0, nil)
+	enc := encodable.NewStructStrict(reflect.TypeOf(benchStruct), structTestSource)
 	for i := 0; i < b.N; i++ {
-		err := (*enc).Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
+		err := enc.Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -119,16 +145,15 @@ func BenchmarkStructStrictDecode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-	enc := src.NewEncodable(reflect.TypeOf(benchStruct), 0, nil)
+	enc := encodable.NewStructStrict(reflect.TypeOf(benchStruct), structTestSource)
 	buff := new(buffer)
-	if err := (*enc).Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
+	if err := enc.Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
 		b.Fatal(err)
 	}
 
 	for i := 0; i < b.N; i++ {
 		buff.Reset()
-		err := (*enc).Decode(unsafe.Pointer(&benchStruct), buff)
+		err := enc.Decode(unsafe.Pointer(&benchStruct), buff)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -145,10 +170,9 @@ func BenchmarkStructLooseEncode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-	enc := src.NewEncodable(reflect.TypeOf(benchStruct), encodable.LooseTyping, nil)
+	enc := encodable.NewStructLoose(reflect.TypeOf(benchStruct), structTestSource)
 	for i := 0; i < b.N; i++ {
-		err := (*enc).Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
+		err := enc.Encode(unsafe.Pointer(&benchStruct), ioutil.Discard)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -165,10 +189,9 @@ func BenchmarkStructLooseDecode(b *testing.B) {
 		Money:    0.16683100555848812,
 	}
 
-	src := encodable.NewRecursiveSource(encodable.DefaultSource{})
-	enc := src.NewEncodable(reflect.TypeOf(benchStruct), encodable.LooseTyping, nil)
+	enc := encodable.NewStructLoose(reflect.TypeOf(benchStruct), structTestSource)
 	buff := new(buffer)
-	if err := (*enc).Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
+	if err := enc.Encode(unsafe.Pointer(&benchStruct), buff); err != nil {
 		b.Fatal(err)
 	}
 

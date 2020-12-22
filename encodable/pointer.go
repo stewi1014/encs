@@ -22,10 +22,6 @@ func NewPointer(ty reflect.Type, config Config, src Source) Encodable {
 	}
 }
 
-const (
-	nilPointer = -1
-)
-
 // Pointer encodes pointers to concrete types.
 type Pointer struct {
 	ty   reflect.Type

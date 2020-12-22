@@ -203,6 +203,12 @@ func (e *Value) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	ty := v.Type()
 
 	if !v.CanAddr() {
+		// We can safely copy this value, as reflect informs us that this value is unaddressable.
+		// reflect really better not be lying to us...
+		// If it actually is addressable and reflect just doesn't want us to have the address then we may have a problem.
+		// When encoding references I need one of two things. The address to compare with others, or a 100% guarantee that no other pointer *could* exist.
+		// A user could always do some weird things (like me :\) with pointers and have a reference that shouldn't be possible in the go type system,
+		// but they can write their own Encodable if that's the case.
 		n := reflect.New(ty).Elem()
 		n.Set(v)
 		v = n
@@ -248,7 +254,7 @@ func (e *Value) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	if err := (*enc).Decode(unsafe.Pointer(v.UnsafeAddr()), r); err != nil {
 		// I no longer trust whatever is in the value
-		*(*reflect.Value)(ptr) = reflect.Value{}
+		*(*reflect.Value)(ptr) = reflect.Value{} // zero it
 		return err
 	}
 	return nil

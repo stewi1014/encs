@@ -184,8 +184,8 @@ func NewPointers() Pointers {
 	}
 }
 
-// Pointers provides methods for resolving pointer cycles.
-// It takes a reflect.Type in methods, and uses them to check equality agaist recorded objects,
+// Pointers provides methods for keeping track of pointers and their types, it is helpful for detecting and resolving pointer cycles.
+// It takes a reflect.Type in methods, sometimes uneccecaraly, but allows it to asset the correct type before return.
 // returning an error if types do not match. This is not so neccecary for Encoding, but is very important to validate when Decoding.
 //
 // Encoders can call Has() before encoding to check if the pointer has already been encoded,
@@ -209,27 +209,19 @@ type object struct {
 // Get returns the object at the given index.
 func (p *Pointers) Get(index int32, ty reflect.Type) (unsafe.Pointer, error) {
 	if index < 0 || index >= int32(len(p.pointers)) {
-		return nil, encio.NewError(
-			encio.ErrMalformed,
-			fmt.Sprintf(
-				"index out of bounds, object %v is referenced but we only have %v objects",
-				index,
-				len(p.pointers),
-			),
-			1,
+		return nil, fmt.Errorf(
+			"index out of bounds, object %v is referenced but we only have %v objects",
+			index,
+			len(p.pointers),
 		)
 	}
 
 	if p.pointers[index].Type != ty {
-		return nil, encio.NewError(
-			encio.ErrMalformed,
-			fmt.Sprintf(
-				"object %v referenced, but it has type %v. wanted %v",
-				index,
-				p.pointers[index].Type.String(),
-				ty.String(),
-			),
-			1,
+		return nil, fmt.Errorf(
+			"object %v referenced, but it has type %v. wanted %v",
+			index,
+			p.pointers[index].Type.String(),
+			ty.String(),
 		)
 	}
 
@@ -257,13 +249,13 @@ func (p *Pointers) Add(ptr unsafe.Pointer, ty reflect.Type) {
 }
 
 // Has returns true if the given pointer has already been added.
-func (p *Pointers) Has(ptr unsafe.Pointer, ty reflect.Type) (index int32, ok bool, err error) {
+func (p *Pointers) Has(ptr unsafe.Pointer, ty reflect.Type) (index int32, ok bool) {
 	for i := int32(0); i < int32(len(p.pointers)); i++ {
 		if p.pointers[i].ptr == ptr && p.pointers[i].Type == ty {
-			return i, true, nil
+			return i, true
 		}
 	}
-	return 0, false, nil
+	return 0, false
 }
 
 // HasReference returns true and the index if the given reference type's pointer matches an existing value.
@@ -344,8 +336,7 @@ const (
 // During Encode, Recursive will check if the pointer has already been encoded, taking care to check reference types such as maps.
 // If not, it then records the pointer, and encodes using the underlying Encodable returned from newFunc.
 //
-// If a pointer is found to be already encoded, it doesn't call the underlying at all, and instead writes the index, the id, of the pointer,
-// which can be used to find the same value which would have been previously decoded during decode.
+
 type Recursive struct {
 	new  func() *Encodable
 	ty   reflect.Type
@@ -368,10 +359,7 @@ func (e *Recursive) Encode(ptr unsafe.Pointer, w io.Writer) error {
 		defer e.ptrs.Reset()
 	}
 
-	index, has, err := e.ptrs.Has(ptr, e.ty)
-	if err != nil {
-		return err
-	}
+	index, has := e.ptrs.Has(ptr, e.ty)
 
 	if has {
 		// We've already encoded this pointer.

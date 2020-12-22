@@ -47,7 +47,7 @@ func (e *Slice) Encode(ptr unsafe.Pointer, w io.Writer) error {
 
 	slice := reflect.NewAt(e.t, ptr).Elem()
 	if slice.IsNil() {
-		return e.len.Encode(w, nilPointer)
+		return e.len.Encode(w, -1)
 	}
 
 	l := slice.Len()
@@ -75,7 +75,7 @@ func (e *Slice) Decode(ptr unsafe.Pointer, r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if l == nilPointer {
+	if l < 0 {
 		// Nil slice
 		slice.Set(reflect.New(e.t).Elem())
 		return nil

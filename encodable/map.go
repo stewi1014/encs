@@ -46,7 +46,7 @@ func (e *Map) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	v := reflect.NewAt(e.t, ptr).Elem()
 
 	if v.IsNil() {
-		return e.len.Encode(w, nilPointer)
+		return e.len.Encode(w, -1)
 	}
 
 	if err := e.len.Encode(w, int32(v.Len())); err != nil {
@@ -85,7 +85,7 @@ func (e *Map) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 	m := reflect.NewAt(e.t, ptr).Elem()
 
-	if l == nilPointer {
+	if l < 0 {
 		m.Set(reflect.New(e.t).Elem())
 		return nil
 	}

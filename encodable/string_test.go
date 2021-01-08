@@ -76,16 +76,6 @@ func TestString(t *testing.T) {
 	}
 }
 
-func TestBool(t *testing.T) {
-	testCases := []bool{true, false}
-	enc := encodable.NewBool(reflect.TypeOf(false))
-	for _, tC := range testCases {
-		t.Run(fmt.Sprint(tC), func(t *testing.T) {
-			testEqual(&tC, &tC, enc, t)
-		})
-	}
-}
-
 func BenchmarkString(b *testing.B) {
 	str := "Hello World!"
 	e := encodable.NewString(reflect.TypeOf(string("")))

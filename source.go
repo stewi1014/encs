@@ -6,7 +6,7 @@ import (
 	"reflect"
 
 	"github.com/stewi1014/encs/encio"
-	"github.com/stewi1014/encs/encodable"
+	"github.com/stewi1014/encs/encode"
 )
 
 var (
@@ -22,34 +22,34 @@ var (
 // where the *int field points to the int field, the decoded *int field will not point to the struct's own field.
 // It is also slower for large types.
 // DefaultSource{} is an appropriate way to instantiate it.
-var DefaultSource = encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
+var DefaultSource = encode.SourceFromFunc(func(t reflect.Type, s encode.Source) encode.Encodable {
 
 	ptrt := reflect.PtrTo(t)
 	kind := t.Kind()
 	switch {
 	// Implementers
 	case ptrt.Implements(binaryMarshalerType) && ptrt.Implements(binaryUnmarshalerType):
-		return encodable.NewBinaryMarshaler(t)
+		return encode.NewBinaryMarshaler(t)
 
 	// Specific types
 	case t == reflectTypeType:
-		return encodable.NewType(false)
+		return encode.NewType(false)
 	case t == reflectValueType:
-		return encodable.NewValue(s)
+		return encode.NewValue(s)
 
 	// Compound-Types
 	case kind == reflect.Ptr:
-		return encodable.NewPointer(t, s)
+		return encode.NewPointer(t, s)
 	case kind == reflect.Interface:
-		return encodable.NewInterface(t, s)
+		return encode.NewInterface(t, s)
 	case kind == reflect.Struct:
-		return encodable.NewStructLoose(t, s)
+		return encode.NewStructLoose(t, s)
 	case kind == reflect.Array:
-		return encodable.NewArray(t, s)
+		return encode.NewArray(t, s)
 	case kind == reflect.Slice:
-		return encodable.NewSlice(t, s)
+		return encode.NewSlice(t, s)
 	case kind == reflect.Map:
-		return encodable.NewMap(t, s)
+		return encode.NewMap(t, s)
 
 	// Number types
 	case kind == reflect.Uint8,
@@ -65,17 +65,17 @@ var DefaultSource = encodable.SourceFromFunc(func(t reflect.Type, s encodable.So
 		kind == reflect.Uintptr,
 		kind == reflect.Float32,
 		kind == reflect.Float64:
-		return encodable.NewVarint(t)
+		return encode.NewVarint(t)
 
 	case kind == reflect.Complex64,
 		kind == reflect.Complex128:
-		return encodable.NewVarComplex(t)
+		return encode.NewVarComplex(t)
 
 	// Misc types
 	case kind == reflect.Bool:
-		return encodable.NewBool(t)
+		return encode.NewBool(t)
 	case kind == reflect.String:
-		return encodable.NewString(t)
+		return encode.NewString(t)
 	default:
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("cannot create encodable for type %v", t), 0))
 	}

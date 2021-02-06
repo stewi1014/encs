@@ -18,7 +18,7 @@ package encs
 import (
 	"reflect"
 
-	"github.com/stewi1014/encs/encodable"
+	"github.com/stewi1014/encs/encode"
 )
 
 // Register registers a type to be encoded.
@@ -29,5 +29,5 @@ func Register(types ...interface{}) error {
 		rtypes[i] = reflect.TypeOf(types)
 	}
 
-	return encodable.Register(rtypes...)
+	return encode.Register(rtypes...)
 }

@@ -16,7 +16,7 @@ func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
 		r:       r,
 		typeEnc: encode.NewType(false),
-		source:  encodable.NewCachingSource(encode.NewRecursiveSource(DefaultSource)),
+		source:  encodable.NewCachingSource(encodable.NewRecursiveSource(DefaultSource)),
 	}
 }
 

@@ -8,20 +8,21 @@ import (
 
 	"github.com/stewi1014/encs/encio"
 	"github.com/stewi1014/encs/encodable"
+	"github.com/stewi1014/encs/types"
 )
 
 // NewType returns a new reflect.Type encode.
 func NewType(strict bool) *Type {
 	e := &Type{
-		unregistered: make(map[ID]reflect.Type),
-		typeByID:     make(map[ID]reflect.Type),
-		idByType:     make(map[reflect.Type]ID),
+		unregistered: make(map[types.ID]reflect.Type),
+		typeByID:     make(map[types.ID]reflect.Type),
+		idByType:     make(map[reflect.Type]types.ID),
 		buff:         make([]byte, 16),
 		strict:       strict,
 	}
 
-	for _, t := range registered {
-		id := GetID(t)
+	for _, t := range types.Registered {
+		id := types.GetID(t)
 
 		e.typeByID[id] = t
 		e.idByType[t] = id
@@ -38,11 +39,11 @@ type Type struct {
 	// unregistered contains types that should be known for speeds sake, but that have not been registered.
 	// If an element in unregistered is used and neccecary for decoding, a warning should be shown, as the fact the type is
 	// in unregistered is completely coincidental, and slight changes in usage or
-	unregistered map[ID]reflect.Type
-	typeByID     map[ID]reflect.Type
+	unregistered map[types.ID]reflect.Type
+	typeByID     map[types.ID]reflect.Type
 
 	// idByType contains both registered and unregistered types.
-	idByType map[reflect.Type]ID
+	idByType map[reflect.Type]types.ID
 	buff     []byte
 }
 
@@ -50,7 +51,7 @@ type Type struct {
 func (e *Type) Size() int { return 16 }
 
 // Type implements Encodable.
-func (e *Type) Type() reflect.Type { return reflectTypeType }
+func (e *Type) Type() reflect.Type { return types.ReflectTypeType }
 
 // Encode implements Encodable.
 func (e *Type) Encode(ptr unsafe.Pointer, w io.Writer) error {
@@ -58,7 +59,7 @@ func (e *Type) Encode(ptr unsafe.Pointer, w io.Writer) error {
 	id, ok := e.idByType[ty]
 	if !ok {
 		// This type hasn't been registered. Register it now.
-		id = GetID(ty)
+		id = types.GetID(ty)
 
 		e.idByType[ty] = id
 	}
@@ -71,7 +72,7 @@ func (e *Type) Encode(ptr unsafe.Pointer, w io.Writer) error {
 // Apart from checking registered types, it also checks if the type currently in ptr is a match,
 // and if so, does nothing.
 func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
-	var id ID
+	var id types.ID
 	if err := encio.Read(e.buff, r); err != nil {
 		return err
 	}
@@ -123,7 +124,7 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 			return nil
 		}
 
-		existing := GetID(ty)
+		existing := types.GetID(ty)
 		if existing == id {
 			// slow path
 			// Type is not registered, but the existing type has the same id as received.
@@ -164,7 +165,7 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 // NewValue returns a new reflect.Value encode.
 func NewValue(src encodable.Source) *Value {
 	return &Value{
-		typeEnc: src.NewEncodable(reflectTypeType, nil),
+		typeEnc: src.NewEncodable(types.ReflectTypeType, nil),
 		src:     encodable.NewCachingSource(src),
 		buff:    make([]byte, 1),
 	}
@@ -185,7 +186,7 @@ const (
 func (e *Value) Size() int { return -1 << 31 }
 
 // Type implements Encodable.
-func (e *Value) Type() reflect.Type { return reflectValueType }
+func (e *Value) Type() reflect.Type { return types.ReflectValueType }
 
 // Encode implements Encodable.
 func (e *Value) Encode(ptr unsafe.Pointer, w io.Writer) error {

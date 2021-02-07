@@ -18,16 +18,16 @@ package encs
 import (
 	"reflect"
 
-	"github.com/stewi1014/encs/encode"
+	"github.com/stewi1014/encs/types"
 )
 
 // Register registers a type to be encoded.
-func Register(types ...interface{}) error {
-	rtypes := make([]reflect.Type, len(types))
+func Register(ty ...interface{}) error {
+	rtypes := make([]reflect.Type, len(ty))
 
-	for i := range types {
-		rtypes[i] = reflect.TypeOf(types)
+	for i := range ty {
+		rtypes[i] = reflect.TypeOf(ty)
 	}
 
-	return encode.Register(rtypes...)
+	return types.Register(rtypes...)
 }

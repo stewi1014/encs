@@ -1,4 +1,4 @@
-package encode_test
+package encodable_test
 
 import (
 	"reflect"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
+	"github.com/stewi1014/encs/types"
 )
 
 type RecursiveTest1 struct {
@@ -34,7 +35,7 @@ type RecursiveTest5 struct {
 	P *int
 }
 
-var recursiveTestSource = encode.NewRecursiveSource(encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
+var recursiveTestSource = encodable.NewRecursiveSource(encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
 	if t == reflect.TypeOf(new(reflect.Value)).Elem() {
 		return encode.NewValue(s)
 	}
@@ -59,7 +60,7 @@ var recursiveTestSource = encode.NewRecursiveSource(encodable.SourceFromFunc(fun
 }))
 
 func TestRecursive(t *testing.T) {
-	err := encode.Register(
+	err := types.Register(
 		reflect.TypeOf(&RecursiveTest1{}),
 		reflect.TypeOf(&RecursiveTest2{}),
 		reflect.TypeOf(&RecursiveTest3{}),

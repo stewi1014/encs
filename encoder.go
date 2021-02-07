@@ -15,7 +15,7 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w:       w,
 		typeEnc: encode.NewType(false),
-		source:  encodable.NewCachingSource(encode.NewRecursiveSource(DefaultSource)),
+		source:  encodable.NewCachingSource(encodable.NewRecursiveSource(DefaultSource)),
 	}
 }
 

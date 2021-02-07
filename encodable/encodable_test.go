@@ -1,9 +1,8 @@
-package encode_test
+package encodable_test
 
 import (
 	"bytes"
 	"errors"
-	"io"
 	"os"
 	"reflect"
 	"testing"
@@ -15,6 +14,32 @@ import (
 )
 
 // TODO: Delete this file
+
+func reflectValueSelf() reflect.Value {
+	var v reflect.Value
+	v = reflect.ValueOf(v)
+	return v
+}
+
+var testCases = []interface{}{
+	true,
+	int(123),
+	[]byte("hello"),
+	string("hello"),
+	[32]byte{},
+	map[[8]byte]string{},
+	new(string),
+	nil,
+	reflectValueSelf(),
+}
+
+func testTypes() []reflect.Type {
+	s := make([]reflect.Type, len(testCases))
+	for i := range testCases {
+		s[i] = reflect.TypeOf(testCases[i])
+	}
+	return s
+}
 
 func TestMain(m *testing.M) {
 	err := types.Register(testTypes()...)
@@ -94,17 +119,6 @@ func runTest(encVal, decVal reflect.Value, enc, dec encodable.Encodable, t *test
 	return nil, nil
 }
 
-func runTestNoErr(encVal, decVal reflect.Value, enc, dec encodable.Encodable, t *testing.T) {
-	encErr, decErr := runTest(encVal, decVal, enc, dec, t)
-	if encErr != nil {
-		t.Error(encErr)
-		return
-	}
-	if decErr != nil {
-		t.Error(decErr)
-	}
-}
-
 func runSingle(val interface{}, enc encodable.Encodable, t *testing.T) (got interface{}, encode, decode error) {
 	encVal := reflect.ValueOf(val)
 	if encVal.Kind() != reflect.Ptr {
@@ -134,42 +148,4 @@ func testEqual(v, want interface{}, e encodable.Encodable, t *testing.T) {
 	tdt := getDeepEqualTester(t, nil)
 
 	td.CmpTrue(t, tdt.Cmp(testNoErr(v, e, t), want))
-}
-
-type buffer struct {
-	buff []byte
-	off  int
-}
-
-// Reset resets reading, allowing the same buffer to be read again.
-func (b *buffer) Reset() {
-	b.off = 0
-}
-
-func (b *buffer) Read(buff []byte) (int, error) {
-	n := copy(buff, b.buff[b.off:])
-	b.off += n
-	if n < len(buff) {
-		return n, io.EOF
-	}
-	return n, nil
-}
-
-func (b *buffer) Write(buff []byte) (int, error) {
-	copy(b.buff[b.grow(len(buff)):], buff)
-	return len(buff), nil
-}
-
-func (b *buffer) grow(n int) int {
-	l := len(b.buff)
-	c := cap(b.buff)
-	if l+n <= c {
-		b.buff = b.buff[:l+n]
-		return l
-	}
-
-	nb := make([]byte, l+n, c*2+n)
-	copy(nb, b.buff)
-	b.buff = nb
-	return l
 }

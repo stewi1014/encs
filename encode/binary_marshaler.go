@@ -8,11 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
-)
-
-var (
-	binaryMarshalerType   = reflect.TypeOf(new(encoding.BinaryMarshaler)).Elem()
-	binaryUnmarshalerType = reflect.TypeOf(new(encoding.BinaryUnmarshaler)).Elem()
+	"github.com/stewi1014/encs/types"
 )
 
 // NewBinaryMarshaler returns a new BinaryMarshaler Encodable.
@@ -24,9 +20,9 @@ func NewBinaryMarshaler(t reflect.Type) *BinaryMarshaler {
 		t: t,
 	}
 
-	err := implementsBinaryMarshaler(t)
+	err := types.ImplementsBinaryMarshaler(t)
 	if err != nil {
-		if implementsBinaryMarshaler(reflect.PtrTo(t)) != nil {
+		if types.ImplementsBinaryMarshaler(reflect.PtrTo(t)) != nil {
 			panic(err)
 		}
 		// init referenced
@@ -55,16 +51,6 @@ type BinaryMarshaler struct {
 type binaryMarshaler interface {
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
-}
-
-func implementsBinaryMarshaler(t reflect.Type) error {
-	if !t.Implements(binaryMarshalerType) {
-		return encio.NewError(encio.ErrBadType, fmt.Sprintf("%v does not implement encoding.BinaryMarshaler", t), 1)
-	}
-	if !t.Implements(binaryUnmarshalerType) {
-		return encio.NewError(encio.ErrBadType, fmt.Sprintf("%v does not implement encoding.BinaryUnmarshaler", t), 1)
-	}
-	return nil
 }
 
 func (e *BinaryMarshaler) setIface(ptr unsafe.Pointer) {

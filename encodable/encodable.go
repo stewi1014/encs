@@ -21,12 +21,6 @@ import (
 	"unsafe"
 )
 
-const (
-	// StructTag is the boolean struct tag that when applied to a struct, will force the field's inclusion or exclusion from encoding.
-	// srvconv.ParseBool() is used for parsing the tag value; it accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
-	StructTag = "encs"
-)
-
 // Encodable is an Encoder and Decoder for a specific type.
 // The aim is to provide a framework that clearly separates the encoding logic for a given type, both from other types, and from their interactions at runtime.
 //

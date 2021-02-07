@@ -8,6 +8,7 @@ import (
 
 	"github.com/stewi1014/encs/encio"
 	"github.com/stewi1014/encs/encodable"
+	"github.com/stewi1014/encs/types"
 )
 
 // NewInterface returns a new interface Encodable.
@@ -19,7 +20,7 @@ func NewInterface(ty reflect.Type, src encodable.Source) *Interface {
 	e := &Interface{
 		ty:      ty,
 		source:  src,
-		typeEnc: src.NewEncodable(reflectTypeType, nil),
+		typeEnc: src.NewEncodable(types.ReflectTypeType, nil),
 		buff:    make([]byte, 1),
 	}
 

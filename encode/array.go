@@ -7,10 +7,11 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
 
 // NewArray returns a new array Encodable.
-func NewArray(ty reflect.Type, src Source) *Array {
+func NewArray(ty reflect.Type, src encodable.Source) *Array {
 	if ty.Kind() != reflect.Array {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an Array", ty), 0))
 	}
@@ -24,7 +25,7 @@ func NewArray(ty reflect.Type, src Source) *Array {
 
 // Array is an Encodable for arrays.
 type Array struct {
-	elem *Encodable
+	elem *encodable.Encodable
 	len  uintptr
 	size uintptr
 }

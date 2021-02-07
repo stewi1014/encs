@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
 )
 
@@ -33,7 +34,7 @@ type RecursiveTest5 struct {
 	P *int
 }
 
-var recursiveTestSource = encode.NewRecursiveSource(encode.SourceFromFunc(func(t reflect.Type, s encode.Source) encode.Encodable {
+var recursiveTestSource = encode.NewRecursiveSource(encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
 	if t == reflect.TypeOf(new(reflect.Value)).Elem() {
 		return encode.NewValue(s)
 	}

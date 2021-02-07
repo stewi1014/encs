@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
 )
 
@@ -48,7 +49,7 @@ func TestSlice(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			enc := encode.NewSlice(reflect.TypeOf(tC.encode).Elem(), encode.SourceFromFunc(func(t reflect.Type, s encode.Source) encode.Encodable {
+			enc := encode.NewSlice(reflect.TypeOf(tC.encode).Elem(), encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
 				switch t.Kind() {
 				case reflect.Int:
 					return encode.NewInt(t)

@@ -2,7 +2,7 @@
 // It aims to be fast, modular and comprehensive, valuing runtime speed over creation overhead.
 //
 // Encodable is the interface implemented by encoders, while Source is the interface implemented by Encodable generators.
-package encode
+package encodable
 
 // I intend to keep a curated list of important notes to keep in mind while developing this part of encs here.
 //
@@ -19,8 +19,6 @@ import (
 	"io"
 	"reflect"
 	"unsafe"
-
-	"github.com/stewi1014/encs/encio"
 )
 
 const (
@@ -93,11 +91,4 @@ type Encodable interface {
 	// Decode will completely read what Encode wrote and only what Encode wrote; no more, no less.
 	// It panics if ptr is nil.
 	Decode(ptr unsafe.Pointer, r io.Reader) error
-}
-
-// checkPtr panics if ptr is nil.
-func checkPtr(ptr unsafe.Pointer) {
-	if ptr == nil {
-		panic(encio.NewError(encio.ErrNilPointer, "unsafe.Pointer types are never allowed to be nil as per https://golang.org/pkg/unsafe/", 1))
-	}
 }

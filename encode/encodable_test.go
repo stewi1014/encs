@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/maxatome/go-testdeep/td"
+	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
 )
 
@@ -54,7 +55,7 @@ func getDeepEqualTester(t *testing.T, state *struct {
 	})
 }
 
-func runTest(encVal, decVal reflect.Value, enc, dec encode.Encodable, t *testing.T) (encodeErr, decodeErr error) {
+func runTest(encVal, decVal reflect.Value, enc, dec encodable.Encodable, t *testing.T) (encodeErr, decodeErr error) {
 
 	if encVal.Type() != enc.Type() {
 		t.Errorf("encoder returns type %v, but type to encode is %v", enc.Type().String(), encVal.Type().String())
@@ -91,7 +92,7 @@ func runTest(encVal, decVal reflect.Value, enc, dec encode.Encodable, t *testing
 	return nil, nil
 }
 
-func runTestNoErr(encVal, decVal reflect.Value, enc, dec encode.Encodable, t *testing.T) {
+func runTestNoErr(encVal, decVal reflect.Value, enc, dec encodable.Encodable, t *testing.T) {
 	encErr, decErr := runTest(encVal, decVal, enc, dec, t)
 	if encErr != nil {
 		t.Error(encErr)
@@ -102,7 +103,7 @@ func runTestNoErr(encVal, decVal reflect.Value, enc, dec encode.Encodable, t *te
 	}
 }
 
-func runSingle(val interface{}, enc encode.Encodable, t *testing.T) (got interface{}, encode, decode error) {
+func runSingle(val interface{}, enc encodable.Encodable, t *testing.T) (got interface{}, encode, decode error) {
 	encVal := reflect.ValueOf(val)
 	if encVal.Kind() != reflect.Ptr {
 		panic("cannot run test with value not passed by reference")
@@ -116,7 +117,7 @@ func runSingle(val interface{}, enc encode.Encodable, t *testing.T) (got interfa
 	return
 }
 
-func testNoErr(v interface{}, enc encode.Encodable, t *testing.T) interface{} {
+func testNoErr(v interface{}, enc encodable.Encodable, t *testing.T) interface{} {
 	got, eerr, derr := runSingle(v, enc, t)
 	if eerr != nil {
 		t.Error(eerr)
@@ -127,7 +128,7 @@ func testNoErr(v interface{}, enc encode.Encodable, t *testing.T) interface{} {
 	return got
 }
 
-func testEqual(v, want interface{}, e encode.Encodable, t *testing.T) {
+func testEqual(v, want interface{}, e encodable.Encodable, t *testing.T) {
 	tdt := getDeepEqualTester(t, nil)
 
 	td.CmpTrue(t, tdt.Cmp(testNoErr(v, e, t), want))

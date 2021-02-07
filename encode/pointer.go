@@ -7,10 +7,11 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
 
 // NewPointer returns a new pointer Encodable.
-func NewPointer(ty reflect.Type, src Source) Encodable {
+func NewPointer(ty reflect.Type, src encodable.Source) *Pointer {
 	if ty.Kind() != reflect.Ptr {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a pointer", ty), 0))
 	}
@@ -28,7 +29,7 @@ func NewPointer(ty reflect.Type, src Source) Encodable {
 // If the underlying pointer is nil this is handled as it should be.
 type Pointer struct {
 	ty   reflect.Type
-	elem *Encodable
+	elem *encodable.Encodable
 	buff []byte
 }
 

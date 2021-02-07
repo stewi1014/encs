@@ -6,6 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
 )
 
@@ -44,7 +45,7 @@ func testValues() []reflect.Value {
 	return s
 }
 
-var reflectTestSource = encode.SourceFromFunc(func(t reflect.Type, s encode.Source) encode.Encodable {
+var reflectTestSource = encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
 	switch t.Kind() {
 	case reflect.Bool:
 		return encode.NewBool(t)

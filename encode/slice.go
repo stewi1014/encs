@@ -7,10 +7,11 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
 
 // NewSlice returns a new slice Encodable.
-func NewSlice(ty reflect.Type, src Source) *Slice {
+func NewSlice(ty reflect.Type, src encodable.Source) *Slice {
 	if ty.Kind() != reflect.Slice {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a slice", ty), 0))
 	}
@@ -25,7 +26,7 @@ func NewSlice(ty reflect.Type, src Source) *Slice {
 // Slice is an Encodable for slices.
 type Slice struct {
 	t    reflect.Type
-	elem *Encodable
+	elem *encodable.Encodable
 	len  encio.Int32
 }
 

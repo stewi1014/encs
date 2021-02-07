@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
 
 // This file contains the logic for handling recursive types and values.
@@ -17,7 +18,7 @@ import (
 // The provided Source can be 'dumb'; i.e. A big switch statement to create an Encodable for a type.
 // It must respect the implementation details of Source; if it doesn't pass the source passed when creating an encodable,
 // RecursiveSource cannot resolve recursive types.
-func NewRecursiveSource(source Source) *RecursiveSource {
+func NewRecursiveSource(source encodable.Source) *RecursiveSource {
 	return &RecursiveSource{
 		source: source,
 		seen:   make(map[reflect.Type]*genState),
@@ -27,7 +28,7 @@ func NewRecursiveSource(source Source) *RecursiveSource {
 
 // RecursiveSource safely creates Encodables for recursive types.
 type RecursiveSource struct {
-	source Source
+	source encodable.Source
 	ptrs   Pointers
 	seen   map[reflect.Type]*genState
 	hasAny bool
@@ -36,8 +37,8 @@ type RecursiveSource struct {
 
 // genState is the state of generation of an encode.
 type genState struct {
-	enc    *Encodable // changes to this field must be done through de-referencing.
-	source Source     // Let's not assume Sources can't change during generation; make sure we use the same one.
+	enc    *encodable.Encodable // changes to this field must be done through de-referencing.
+	source encodable.Source     // Let's not assume Sources can't change during generation; make sure we use the same one.
 	depth  int
 	state  byte
 }
@@ -53,7 +54,7 @@ const (
 // The returned Encodable is usable upon return, but can be retroactively swapped if a recursive value is found. As such the returned Encodable must not be dereferenced.
 // It wraps Encodables as little as possible while still keeping the ability to handle recursive values and types,
 // and the correct re-creation of recursive values on decode.
-func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encodable {
+func (src *RecursiveSource) NewEncodable(ty reflect.Type, source encodable.Source) *encodable.Encodable {
 	if source == nil {
 		source = src
 	}
@@ -95,7 +96,7 @@ func (src *RecursiveSource) NewEncodable(ty reflect.Type, source Source) *Encoda
 
 	// Let ourselves know what we're doing
 	src.seen[id] = &genState{
-		enc:    new(Encodable),
+		enc:    new(encodable.Encodable),
 		source: source,
 		depth:  src.depth,
 		state:  stateGenerating,
@@ -145,13 +146,13 @@ func (src *RecursiveSource) setRecursed(depth int) {
 
 // makeRecursive either wraps an existing Encodable with Recursive, or creates a new Recursive Encodable.
 // It updates the map.
-func (src *RecursiveSource) makeRecursive(id reflect.Type, source Source) *Encodable {
+func (src *RecursiveSource) makeRecursive(id reflect.Type, source encodable.Source) *encodable.Encodable {
 	if gen, ok := src.seen[id]; ok {
 		if gen.state == stateRecursed {
 			return gen.enc
 		}
 
-		recursive := NewRecursive(id, &src.ptrs, func() *Encodable {
+		recursive := NewRecursive(id, &src.ptrs, func() *encodable.Encodable {
 			return src.source.NewEncodable(id, gen.source)
 		})
 
@@ -161,7 +162,7 @@ func (src *RecursiveSource) makeRecursive(id reflect.Type, source Source) *Encod
 		return gen.enc
 	}
 
-	enc := Encodable(NewRecursive(id, &src.ptrs, func() *Encodable {
+	enc := encodable.Encodable(NewRecursive(id, &src.ptrs, func() *encodable.Encodable {
 		return src.source.NewEncodable(id, source)
 	}))
 
@@ -292,12 +293,12 @@ func (p *Pointers) Reset() {
 //
 // Typically, it is never desirable to manually create an instance of Recursive. It is best used inside implementations of Source
 // as a solution to recursive types and values and avoided if not needed.
-func NewRecursive(ty reflect.Type, ptrs *Pointers, newFunc func() *Encodable) *Recursive {
+func NewRecursive(ty reflect.Type, ptrs *Pointers, newFunc func() *encodable.Encodable) *Recursive {
 	r := &Recursive{
 		ptrs: ptrs,
 		ty:   ty,
 		new:  newFunc,
-		encs: make([]*Encodable, 0, 1),
+		encs: make([]*encodable.Encodable, 0, 1),
 	}
 
 	if ty.Kind() == reflect.Map {
@@ -330,11 +331,11 @@ const (
 // If a pointer is found to be already encoded, it doesn't call the underlying at all, and instead instead writes the index of the previously encoded value.
 // This value is then read and used upon Decode to reference the previously decoded value and use it, recreating the same reference structure as was encoded.
 type Recursive struct {
-	new  func() *Encodable
+	new  func() *encodable.Encodable
 	ty   reflect.Type
 	ptrs *Pointers
 	kind byte
-	encs []*Encodable
+	encs []*encodable.Encodable
 }
 
 // Size implements Encodable.
@@ -406,7 +407,7 @@ func (e *Recursive) Decode(ptr unsafe.Pointer, r io.Reader) error {
 
 // Pop takes an encodable off the top of the stack or generates one,
 // passing ownership to the caller.
-func (e *Recursive) Pop() (enc *Encodable) {
+func (e *Recursive) Pop() (enc *encodable.Encodable) {
 	l := len(e.encs)
 	if l > 0 {
 		enc = e.encs[l-1]
@@ -423,7 +424,7 @@ func (e *Recursive) Pop() (enc *Encodable) {
 
 // Push returns an encodable to the stack,
 // taking ownership of it. Subsequent calls cannot be made to the Encodable.
-func (e *Recursive) Push(enc *Encodable) {
+func (e *Recursive) Push(enc *encodable.Encodable) {
 	l := len(e.encs)
 	if l < cap(e.encs) {
 		e.encs = e.encs[:l+1]
@@ -431,7 +432,7 @@ func (e *Recursive) Push(enc *Encodable) {
 		return
 	}
 
-	nb := make([]*Encodable, l+1, cap(e.encs)*2)
+	nb := make([]*encodable.Encodable, l+1, cap(e.encs)*2)
 	copy(nb, e.encs)
 	nb[l] = enc
 	e.encs = nb

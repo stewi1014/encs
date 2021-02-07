@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
 
 // NewType returns a new reflect.Type encode.
@@ -161,18 +162,18 @@ func (e *Type) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewValue returns a new reflect.Value encode.
-func NewValue(src Source) *Value {
+func NewValue(src encodable.Source) *Value {
 	return &Value{
 		typeEnc: src.NewEncodable(reflectTypeType, nil),
-		src:     NewCachingSource(src),
+		src:     encodable.NewCachingSource(src),
 		buff:    make([]byte, 1),
 	}
 }
 
 // Value is an encodable for reflect.Value values.
 type Value struct {
-	typeEnc *Encodable
-	src     *CachingSource
+	typeEnc *encodable.Encodable
+	src     *encodable.CachingSource
 	buff    []byte
 }
 

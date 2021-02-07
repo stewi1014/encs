@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
 )
 
@@ -14,7 +15,7 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w:       w,
 		typeEnc: encode.NewType(false),
-		source:  encode.NewCachingSource(encode.NewRecursiveSource(DefaultSource)),
+		source:  encodable.NewCachingSource(encode.NewRecursiveSource(DefaultSource)),
 	}
 }
 
@@ -22,7 +23,7 @@ type Encoder struct {
 	w       io.Writer
 	mutex   sync.Mutex
 	typeEnc *encode.Type
-	source  encode.Source
+	source  encodable.Source
 }
 
 func (e *Encoder) Encode(v interface{}) error {

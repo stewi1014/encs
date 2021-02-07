@@ -7,10 +7,11 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
 
 // NewInterface returns a new interface Encodable.
-func NewInterface(ty reflect.Type, src Source) *Interface {
+func NewInterface(ty reflect.Type, src encodable.Source) *Interface {
 	if ty.Kind() != reflect.Interface {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not an interface", ty), 0))
 	}
@@ -28,8 +29,8 @@ func NewInterface(ty reflect.Type, src Source) *Interface {
 // Interface is an Encodable for interfaces.
 type Interface struct {
 	ty      reflect.Type
-	source  Source
-	typeEnc *Encodable
+	source  encodable.Source
+	typeEnc *encodable.Encodable
 	buff    []byte
 }
 

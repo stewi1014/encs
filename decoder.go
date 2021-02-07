@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
 )
 
@@ -15,7 +16,7 @@ func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
 		r:       r,
 		typeEnc: encode.NewType(false),
-		source:  encode.NewCachingSource(encode.NewRecursiveSource(DefaultSource)),
+		source:  encodable.NewCachingSource(encode.NewRecursiveSource(DefaultSource)),
 	}
 }
 
@@ -23,7 +24,7 @@ type Decoder struct {
 	r       io.Reader
 	mutex   sync.Mutex
 	typeEnc *encode.Type
-	source  encode.Source
+	source  encodable.Source
 }
 
 func (d *Decoder) Decode(v interface{}) error {

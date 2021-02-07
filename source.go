@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
 )
 
@@ -22,7 +23,7 @@ var (
 // where the *int field points to the int field, the decoded *int field will not point to the struct's own field.
 // It is also slower for large types.
 // DefaultSource{} is an appropriate way to instantiate it.
-var DefaultSource = encode.SourceFromFunc(func(t reflect.Type, s encode.Source) encode.Encodable {
+var DefaultSource = encodable.SourceFromFunc(func(t reflect.Type, s encodable.Source) encodable.Encodable {
 
 	ptrt := reflect.PtrTo(t)
 	kind := t.Kind()

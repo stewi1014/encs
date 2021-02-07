@@ -10,7 +10,7 @@ import (
 )
 
 // NewBool returns a new bool Encodable.
-func NewBool(ty reflect.Type) Encodable {
+func NewBool(ty reflect.Type) *Bool {
 	if ty.Kind() != reflect.Bool {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not of bool kind", ty.String()), 0))
 	}

@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
 
 type structMembers []reflect.StructField
@@ -25,7 +26,7 @@ func structFields(ty reflect.Type) []reflect.StructField {
 	for i := 0; i < ty.NumField(); i++ {
 		field := ty.Field(i)
 
-		tagStr, tagged := field.Tag.Lookup(StructTag)
+		tagStr, tagged := field.Tag.Lookup(encodable.StructTag)
 		var tag bool
 		if tagged {
 			parsed, err := strconv.ParseBool(tagStr)
@@ -56,7 +57,7 @@ func structFields(ty reflect.Type) []reflect.StructField {
 }
 
 // NewStructLoose returns a new struct Encodable.
-func NewStructLoose(ty reflect.Type, src Source) *StructLoose {
+func NewStructLoose(ty reflect.Type, src encodable.Source) *StructLoose {
 	if ty.Kind() != reflect.Struct {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", ty), 0))
 	}
@@ -114,7 +115,7 @@ type StructLoose struct {
 type looseField struct {
 	id     uint32
 	offset uintptr
-	enc    *Encodable
+	enc    *encodable.Encodable
 }
 
 // Size implements Encodable.
@@ -201,7 +202,7 @@ func (e *StructLoose) Decode(ptr unsafe.Pointer, r io.Reader) error {
 }
 
 // NewStructStrict returns a new struct Encodable.
-func NewStructStrict(ty reflect.Type, src Source) *StructStrict {
+func NewStructStrict(ty reflect.Type, src encodable.Source) *StructStrict {
 	if ty.Kind() != reflect.Struct {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a struct", ty), 0))
 	}
@@ -233,7 +234,7 @@ type StructStrict struct {
 
 type strictField struct {
 	offset uintptr
-	enc    *Encodable
+	enc    *encodable.Encodable
 }
 
 // Size implements Encodable.

@@ -7,10 +7,11 @@ import (
 	"unsafe"
 
 	"github.com/stewi1014/encs/encio"
+	"github.com/stewi1014/encs/encodable"
 )
 
 // NewMap returns a new map Encodable.
-func NewMap(ty reflect.Type, src Source) *Map {
+func NewMap(ty reflect.Type, src encodable.Source) *Map {
 	if ty.Kind() != reflect.Map {
 		panic(encio.NewError(encio.ErrBadType, fmt.Sprintf("%v is not a map", ty), 0))
 	}
@@ -25,7 +26,7 @@ func NewMap(ty reflect.Type, src Source) *Map {
 
 // Map is an Encodable for maps.
 type Map struct {
-	key, val *Encodable
+	key, val *encodable.Encodable
 	len      encio.Int32
 	t        reflect.Type
 }

@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/maxatome/go-testdeep/td"
+	"github.com/stewi1014/encs/encodable"
 	"github.com/stewi1014/encs/encode"
 )
 
@@ -508,7 +509,7 @@ func TestVarint(t *testing.T) {
 	testCases := getVarintTestCases()
 
 	// Use a caching source so Varint is reused.
-	src := encode.NewCachingSource(encode.SourceFromFunc(func(ty reflect.Type, source encode.Source) encode.Encodable {
+	src := encodable.NewCachingSource(encodable.SourceFromFunc(func(ty reflect.Type, source encodable.Source) encodable.Encodable {
 		return encode.NewVarint(ty)
 	}))
 

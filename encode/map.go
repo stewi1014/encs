@@ -32,9 +32,7 @@ type Map struct {
 }
 
 // Size implements Encodable.
-func (e *Map) Size() int {
-	return -1 << 31
-}
+func (e *Map) Size() int { return -1 }
 
 // Type implements Encodable.
 func (e *Map) Type() reflect.Type {

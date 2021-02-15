@@ -183,7 +183,7 @@ const (
 )
 
 // Size implements Encodable.
-func (e *Value) Size() int { return -1 << 31 }
+func (e *Value) Size() int { return -1 }
 
 // Type implements Encodable.
 func (e *Value) Type() reflect.Type { return types.ReflectValueType }

@@ -65,7 +65,7 @@ func (e *BinaryMarshaler) setIface(ptr unsafe.Pointer) {
 func (e *BinaryMarshaler) Type() reflect.Type { return e.t }
 
 // Size implements Encodable.
-func (e *BinaryMarshaler) Size() int { return -1 << 31 }
+func (e *BinaryMarshaler) Size() int { return -1 }
 
 // Encode implements Encodable.
 func (e *BinaryMarshaler) Encode(ptr unsafe.Pointer, w io.Writer) error {

@@ -34,7 +34,7 @@ type Array struct {
 func (e *Array) Size() int {
 	s := (*e.elem).Size()
 	if s < 0 {
-		return -1 << 31
+		return -1
 	}
 	return s * int(e.len)
 }

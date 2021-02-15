@@ -31,9 +31,7 @@ type Slice struct {
 }
 
 // Size implemenets Encodable.
-func (e *Slice) Size() int {
-	return -1 << 31
-}
+func (e *Slice) Size() int { return -1 }
 
 // Type implements Encodable.
 func (e *Slice) Type() reflect.Type {

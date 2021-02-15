@@ -131,7 +131,7 @@ func (e *StructLoose) Size() int {
 	for _, field := range e.fields {
 		fsize := (*field.enc).Size()
 		if fsize < 0 {
-			return -1 << 31
+			return -1
 		}
 		size += fsize
 	}

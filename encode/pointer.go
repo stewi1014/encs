@@ -33,9 +33,13 @@ type Pointer struct {
 	buff []byte
 }
 
-// Size implements Sized.
+// Size implements Encodable.
 func (e *Pointer) Size() int {
-	return (*e.elem).Size() + 1
+	size := (*e.elem).Size()
+	if size < 0 {
+		return -1
+	}
+	return size + 1
 }
 
 // Type implements Encodable.

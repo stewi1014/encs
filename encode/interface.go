@@ -36,9 +36,7 @@ type Interface struct {
 }
 
 // Size implements Encodable.
-func (e *Interface) Size() int {
-	return -1 << 31
-}
+func (e *Interface) Size() int { return -1 }
 
 // Type implements Encodable.
 func (e *Interface) Type() reflect.Type {

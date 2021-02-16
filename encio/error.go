@@ -7,6 +7,8 @@ import (
 	"runtime"
 )
 
+// TODO: Revisit common errors, then look at all calls to NewIOError and new Error.
+
 // Error handling in encs is designed to provide an easy way to distinguish io errors and bad data from internal encoding errors,
 // and to reuse a small set of common error kinds for as many errors as possible, with extra information wrapped as applicable.
 // To this end, all error cases are grouped into two error wrappers; IOError and Error, the idea being that
